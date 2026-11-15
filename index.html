@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Banco do Hegemony</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: one phone-width column, a bank passbook. The player's class colour stripes the balance and the main button. */
+:root{
+  --bg:#e9edea; --surface:#ffffff; --ink:#15201b; --muted:#5a6861; --line:#cfd7d2;
+  --wc:#c2352b; --on-wc:#fff; --mc:#e0b100; --on-mc:#201a00; --cc:#2059b0; --on-cc:#fff; --st:#59636e; --on-st:#fff;
+  --good:#1c7f45; --bad:#b8322a; --warn-bg:#fff2c9; --warn-ink:#4d3c00;
+  --cls:var(--ink); --on:var(--surface);
+  --display:"Archivo",system-ui,sans-serif; --body:"IBM Plex Sans",system-ui,sans-serif; --num:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#111614; --surface:#1a211e; --ink:#e7ece9; --muted:#96a39c; --line:#2d3833;
+    --wc:#e5564b; --on-wc:#1b0503; --mc:#efc21a; --on-mc:#201a00; --cc:#5a93ea; --on-cc:#04142e; --st:#9aa5b1; --on-st:#12161a;
+    --good:#4cc47e; --bad:#f0736a; --warn-bg:#3d3310; --warn-ink:#f5e3a0;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#111614; --surface:#1a211e; --ink:#e7ece9; --muted:#96a39c; --line:#2d3833;
+  --wc:#e5564b; --on-wc:#1b0503; --mc:#efc21a; --on-mc:#201a00; --cc:#5a93ea; --on-cc:#04142e; --st:#9aa5b1; --on-st:#12161a;
+  --good:#4cc47e; --bad:#f0736a; --warn-bg:#3d3310; --warn-ink:#f5e3a0;
+}
+body[data-me="wc"]{--cls:var(--wc);--on:var(--on-wc)}
+body[data-me="mc"]{--cls:var(--mc);--on:var(--on-mc)}
+body[data-me="cc"]{--cls:var(--cc);--on:var(--on-cc)}
+body[data-me="st"]{--cls:var(--st);--on:var(--on-st)}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:400 16px/1.4 var(--body);-webkit-text-size-adjust:100%}
+main{max-width:480px;margin:0 auto;padding:16px 16px 48px;display:flex;flex-direction:column;gap:14px}
+button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:disabled{opacity:.4;cursor:not-allowed}
+:focus-visible{outline:3px solid var(--cls);outline-offset:2px}
+[hidden]{display:none!important}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{font:800 22px/1.1 var(--display);margin:0;letter-spacing:-.01em}
+h2{font:700 13px/1 var(--display);margin:0;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.pill{font:600 12px/1 var(--body);padding:6px 10px;border-radius:99px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.pill.ok{color:var(--good);border-color:currentColor}
+.pill.off{color:var(--bad);border-color:currentColor}
+#notice{background:var(--warn-bg);color:var(--warn-ink);padding:10px 12px;border-radius:8px;font-size:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px}
+/* class picker */
+#classes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+#classes button{background:var(--surface);border:1px solid var(--line);border-bottom:4px solid var(--c);border-radius:8px;padding:10px 2px 8px;font:700 13px/1.1 var(--display)}
+#classes button[aria-pressed="true"]{background:var(--c);color:var(--oc);border-color:var(--c)}
+[data-cls="wc"]{--c:var(--wc);--oc:var(--on-wc)}
+[data-cls="mc"]{--c:var(--mc);--oc:var(--on-mc)}
+[data-cls="cc"]{--c:var(--cc);--oc:var(--on-cc)}
+[data-cls="st"]{--c:var(--st);--oc:var(--on-st)}
+/* balance */
+#balance{border-left:8px solid var(--cls)}
+.who{font:700 15px/1 var(--display)}
+.big{font:600 52px/1 var(--num);font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+.big small{font-size:.5em;color:var(--muted);margin-left:2px}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.split .big{font-size:38px}
+.lbl{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{background:transparent;border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-weight:600;font-size:14px}
+.btn.armed{background:var(--bad);border-color:var(--bad);color:#fff}
+/* other balances */
+#others{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.tile{background:var(--surface);border:1px solid var(--line);border-top:4px solid var(--c);border-radius:8px;padding:8px 6px;min-width:0}
+.tile b{display:block;font:600 18px/1.2 var(--num);font-variant-numeric:tabular-nums}
+.tile span{display:block;font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+.tile .nm{font:700 11px/1.2 var(--display);color:var(--ink)}
+/* pay panel */
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{background:transparent;border:0;padding:10px;font-weight:600}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:transparent;border:1px solid var(--line);border-radius:99px;padding:8px 12px;font-size:14px;font-weight:500}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.chip[data-cls]{border-left:6px solid var(--c)}
+#amt{font:600 44px/1 var(--num);font-variant-numeric:tabular-nums;text-align:right;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+#amt small{font-size:.5em;color:var(--muted)}
+.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.keys button{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:14px 0;font:600 20px/1 var(--num)}
+.keys button.q{font-size:15px;color:var(--muted)}
+#go{background:var(--cls);color:var(--on);border:0;border-radius:10px;padding:16px;font:800 18px/1.1 var(--display)}
+#msg{font-size:14px;min-height:20px;margin:0}
+#msg.err{color:var(--bad);font-weight:600}
+#msg.done{color:var(--good);font-weight:600}
+/* history */
+#txlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+#txlist li{display:grid;grid-template-columns:1fr auto auto;gap:4px 10px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+#txlist li:first-child{border-top:0}
+.tx-main{font-size:14px;font-weight:500;overflow-wrap:anywhere}
+.tx-sub{font-size:12px;color:var(--muted)}
+.tx-amt{font:600 16px/1 var(--num);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tx-amt.in{color:var(--good)} .tx-amt.out{color:var(--bad)}
+li.void .tx-main,li.void .tx-amt{text-decoration:line-through;color:var(--muted)}
+.mini{background:transparent;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:12px;font-weight:600}
+.empty{color:var(--muted);font-size:14px;margin:0}
+/* new game */
+details summary{font:700 15px/1 var(--display);cursor:pointer;padding:2px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:500}
+input{font:600 18px/1 var(--num);padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%}
+p.help{font-size:13px;color:var(--muted);margin:0}
+@media (prefers-reduced-motion:no-preference){button{transition:background-color .12s}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Banco do Hegemony</h1>
+    <span id="status" class="pill">A ligar…</span>
+  </header>
+  <div id="notice" hidden></div>
+
+  <nav id="classes" aria-label="A tua classe">
+    <button type="button" data-cls="wc" aria-pressed="false">Trabalha&shy;dora</button>
+    <button type="button" data-cls="mc" aria-pressed="false">Média</button>
+    <button type="button" data-cls="cc" aria-pressed="false">Capita&shy;lista</button>
+    <button type="button" data-cls="st" aria-pressed="false">Estado</button>
+  </nav>
+
+  <section id="balance" class="card" aria-live="polite"></section>
+  <section id="others" aria-label="Saldos de todas as classes"></section>
+
+  <section id="pay" class="card">
+    <h2>Movimento</h2>
+    <div class="seg" role="group" aria-label="Direção">
+      <button type="button" data-dir="out" aria-pressed="true">Pagar</button>
+      <button type="button" data-dir="in" aria-pressed="false">Receber</button>
+    </div>
+    <div id="parties" class="chips" role="group" aria-label="Com quem"></div>
+    <div id="ccin" class="row" hidden>
+      <span class="lbl">Entra em</span>
+      <div class="chips">
+        <button type="button" class="chip" data-ccin="rev" aria-pressed="true">Receitas</button>
+        <button type="button" class="chip" data-ccin="cap" aria-pressed="false">Capital</button>
+      </div>
+    </div>
+    <div id="amt" aria-live="polite">0<small>¥</small></div>
+    <div class="keys">
+      <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button><button type="button" class="q" data-add="5">+5</button>
+      <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button><button type="button" class="q" data-add="10">+10</button>
+      <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button><button type="button" class="q" data-add="25">+25</button>
+      <button type="button" class="q" data-k="c" aria-label="Limpar">C</button><button type="button" data-k="0">0</button><button type="button" class="q" data-k="b" aria-label="Apagar último dígito">⌫</button><button type="button" class="q" data-add="50">+50</button>
+    </div>
+    <div id="tags" class="chips" role="group" aria-label="Motivo (opcional)">
+      <button type="button" class="chip" data-tag="sal" aria-pressed="false">Salários</button>
+      <button type="button" class="chip" data-tag="imp" aria-pressed="false">Impostos</button>
+      <button type="button" class="chip" data-tag="com" aria-pressed="false">Compra</button>
+      <button type="button" class="chip" data-tag="tax" aria-pressed="false">Taxas</button>
+    </div>
+    <button type="button" id="go" disabled>Escolhe a tua classe</button>
+    <p id="msg" role="status"></p>
+  </section>
+
+  <section id="history" class="card">
+    <h2>Movimentos</h2>
+    <ol id="txlist"></ol>
+  </section>
+
+  <details id="newgame" class="card">
+    <summary>Novo jogo</summary>
+    <p class="help">Apaga os saldos de todos e começa com estes valores. Os movimentos do jogo anterior deixam de aparecer.</p>
+    <div class="grid2">
+      <label for="s-wc">Classe Trabalhadora<input id="s-wc" type="number" inputmode="numeric" min="0" value="30"></label>
+      <label for="s-mc">Classe Média<input id="s-mc" type="number" inputmode="numeric" min="0" value="40"></label>
+      <label for="s-rev">Capitalista (Receitas)<input id="s-rev" type="number" inputmode="numeric" min="0" value="120"></label>
+      <label for="s-st">Estado<input id="s-st" type="number" inputmode="numeric" min="0" value="120"></label>
+    </div>
+    <div class="row"><button type="button" class="btn" id="start">Começar novo jogo</button></div>
+  </details>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+/* ====== CONFIGURAÇÃO: cola aqui o endereço da tua Realtime Database ====== */
+var DATABASE_URL = "https://banco-hegemony-default-rtdb.europe-west1.firebasedatabase.app";
+/* exemplo: "https://o-teu-projeto-default-rtdb.europe-west1.firebasedatabase.app" */
+(function(){
+"use strict";
+var CLS=["wc","mc","cc","st"];
+var P={
+  wc:{n:"Classe Trabalhadora",s:"Trabalhadora",a:"à Classe Trabalhadora",d:"da Classe Trabalhadora"},
+  mc:{n:"Classe Média",s:"Média",a:"à Classe Média",d:"da Classe Média"},
+  cc:{n:"Classe Capitalista",s:"Capitalista",a:"à Classe Capitalista",d:"da Classe Capitalista"},
+  st:{n:"Estado",s:"Estado",a:"ao Estado",d:"do Estado"},
+  bank:{n:"Banco",s:"Banco",a:"ao Banco",d:"do Banco"}
+};
+var ACCT_CLS={wc:"wc",mc:"mc",rev:"cc",cap:"cc",st:"st",bank:"bank"};
+var ACCT_NAME={wc:"Trabalhadora",mc:"Média",rev:"Capitalista (Receitas)",cap:"Capitalista (Capital)",st:"Estado",bank:"Banco"};
+var TAGS={sal:"Salários",imp:"Impostos",com:"Compra",tax:"Taxas",jur:"Juros",loan:"Empréstimo",repay:"Liquidação de empréstimo",start:"Início",mov:"Fecho de receitas"};
+var LOAN=50, INTEREST=5;
+
+var db=null, mode="boot", readOnly=false, stale=false;
+var gameId=null, col=null, staleTimer=null;
+var txs=[];
+var me=null, dir="out", party="bank", ccIn="rev", amt=0, tag=null, busy=false;
+
+try{ var saved=localStorage.getItem("heg-me"); if(CLS.indexOf(saved)>=0) me=saved; }catch(e){}
+
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+function money(n){return n+'<small>¥</small>';}
+
+function clean(id,d){
+  if(!d||!(d.from in ACCT_CLS)||!(d.to in ACCT_CLS)||d.from===d.to) return null;
+  var a=Number(d.amt), ts=Number(d.ts);
+  if(!Number.isInteger(a)||a<=0||a>1000000||!isFinite(ts)) return null;
+  var ln=(d.ln===1||d.ln===-1)&&CLS.indexOf(d.lc)>=0?d.ln:0;
+  return {id:id,from:d.from,to:d.to,amt:a,ts:ts,tag:(d.tag in TAGS)?d.tag:null,by:CLS.indexOf(d.by)>=0?d.by:null,void:d.void===true,lc:ln?d.lc:null,ln:ln};
+}
+function balances(){
+  var b={wc:0,mc:0,rev:0,cap:0,st:0,bank:0}, l={wc:0,mc:0,cc:0,st:0};
+  txs.forEach(function(t){ if(t.void) return; b[t.from]-=t.amt; b[t.to]+=t.amt; if(t.ln) l[t.lc]+=t.ln; });
+  CLS.forEach(function(c){ if(l[c]<0) l[c]=0; });
+  return {b:b,l:l};
+}
+function total(b,c){return c==="cc"?b.rev+b.cap:b[c];}
+function locked(){return mode==="boot"||readOnly||!gameId||!me||busy;}
+
+/* ---------- writing ---------- */
+function newId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
+function addTx(d){
+  d.ts=Date.now(); d.by=me; d.void=false;
+  var id=newId();
+  if(mode==="local"){ txs.push(clean(id,d)); return Promise.resolve(); }
+  return col.child(id).set(d);
+}
+function writeFailed(e){
+  if(e&&/PERMISSION_DENIED/i.test(String(e.code||e.message||e))){ readOnly=true; }
+  else { say("Não consegui gravar. Verifica a ligação e tenta outra vez.",true); }
+}
+function say(text,err){ var m=$("msg"); m.textContent=text; m.className=err?"err":"done"; }
+
+/* Move money between two parties ("wc","mc","cc","st","bank"). The Capitalist pays from Receitas first, then Capital. */
+function transfer(fromP,toP,n,tg,loan){
+  var st=balances(), b=st.b, legs=[];
+  if(fromP==="bank"){ legs.push(["bank",n]); }
+  else{
+    var have=total(b,fromP);
+    if(have<n){
+      say((fromP===me?"Só tens ":P[fromP].n+" só tem ")+have+"¥."+(fromP===me?" Pede um empréstimo ao Banco.":""),true);
+      return Promise.resolve(false);
+    }
+    if(fromP==="cc"){ var r=Math.min(Math.max(b.rev,0),n); if(r>0) legs.push(["rev",r]); if(n-r>0) legs.push(["cap",n-r]); }
+    else legs.push([fromP,n]);
+  }
+  var to=toP==="cc"?(loan?"cap":(me==="cc"?ccIn:"rev")):toP;
+  busy=true; render();
+  var p=Promise.resolve();
+  legs.forEach(function(leg,i){
+    p=p.then(function(){
+      var d={from:leg[0],to:to,amt:leg[1]};
+      if(tg) d.tag=tg;
+      if(loan&&i===0){ d.lc=loan.c; d.ln=loan.n; }
+      return addTx(d);
+    });
+  });
+  return p.then(function(){busy=false;return true;},function(e){busy=false;writeFailed(e);return false;}).then(function(ok){render();return ok;});
+}
+function setVoid(t,v){
+  if(mode==="local"){ t.void=v; render(); return; }
+  col.child(t.id).update({void:v}).catch(function(e){writeFailed(e);render();});
+}
+
+/* ---------- game + subscriptions ---------- */
+function useGame(gid){
+  if(gid===gameId) return;
+  if(col){ col.off(); col=null; }
+  gameId=gid; txs=[];
+  if(mode!=="sync"||!gid){ render(); return; }
+  col=db.ref("hegemony/games/"+gid+"/tx");
+  col.on("value",function(snap){
+    var v=snap.val()||{};
+    txs=Object.keys(v).map(function(k){return clean(k,v[k]);}).filter(Boolean);
+    render();
+  },subError);
+  render();
+}
+function armStale(){ clearTimeout(staleTimer); staleTimer=setTimeout(function(){stale=true;render();},10000); }
+function clearStale(){ clearTimeout(staleTimer); stale=false; }
+function subError(e){ clearStale(); readOnly=true; render(); }
+
+function startGame(){
+  var v={wc:"s-wc",mc:"s-mc",rev:"s-rev",st:"s-st"}, start=[];
+  Object.keys(v).forEach(function(k){ var n=Math.floor(Number($(v[k]).value)); if(n>0&&n<=1000000) start.push([k,n]); });
+  var gid="g"+Date.now().toString(36);
+  busy=true; render();
+  var p=mode==="sync"?db.ref("hegemony/meta").set({gameId:gid,startedAt:Date.now()}):Promise.resolve();
+  return p.then(function(){
+    useGame(gid);
+    var q=Promise.resolve();
+    start.forEach(function(s){ q=q.then(function(){return addTx({from:"bank",to:s[0],amt:s[1],tag:"start"});}); });
+    return q;
+  }).then(function(){busy=false;$("newgame").open=false;say("Novo jogo começado.");},function(e){busy=false;writeFailed(e);}).then(render);
+}
+
+function init(){
+  if(!DATABASE_URL||!window.firebase){ mode="local"; startGame(); return; }
+  try{ firebase.initializeApp({databaseURL:DATABASE_URL}); db=firebase.database(); }
+  catch(e){ mode="local"; startGame(); return; }
+  mode="sync"; armStale();
+  var seen=false;
+  db.ref(".info/connected").on("value",function(snap){
+    if(snap.val()===true){ seen=true; clearStale(); } else if(seen){ stale=true; }
+    render();
+  });
+  db.ref("hegemony/meta").on("value",function(snap){
+    var v=snap.val(), g=v?v.gameId:null;
+    if(typeof g==="string"&&/^[a-z0-9]{2,40}$/.test(g)) useGame(g);
+    else if(!gameId){ $("newgame").open=true; render(); }
+  },subError);
+  render();
+}
+
+/* ---------- render ---------- */
+function render(){
+  var st=balances(), b=st.b, l=st.l, lk=locked();
+  document.body.dataset.me=me||"";
+
+  var s=$("status");
+  if(mode==="boot"){ s.textContent="A ligar…"; s.className="pill"; }
+  else if(mode==="local"){ s.textContent="Só neste dispositivo"; s.className="pill off"; }
+  else if(readOnly){ s.textContent="Só leitura"; s.className="pill off"; }
+  else if(stale){ s.textContent="Sem ligação"; s.className="pill off"; }
+  else { s.textContent="Sincronizado"; s.className="pill ok"; }
+
+  var note="";
+  if(mode==="local") note="Falta ligar a base de dados (DATABASE_URL no ficheiro). Os movimentos ficam só neste dispositivo e perdem-se ao fechar a página.";
+  else if(readOnly) note="A base de dados recusou o acesso. Confirma as regras (Rules) da Realtime Database no Firebase.";
+  else if(stale) note="Não consigo chegar à base de dados. O que vês pode estar desatualizado.";
+  else if(mode==="sync"&&!gameId) note="Ainda não há nenhum jogo. Abre «Novo jogo» em baixo para começar.";
+  $("notice").hidden=!note; $("notice").textContent=note;
+
+  Array.prototype.forEach.call(document.querySelectorAll("#classes button"),function(el){ el.setAttribute("aria-pressed",String(el.dataset.cls===me)); });
+
+  var h;
+  if(!me){
+    h='<div class="who">Escolhe a tua classe</div><p class="empty">Toca numa das quatro classes em cima. Podes trocar a qualquer momento.</p>';
+  }else{
+    h='<div class="who">'+esc(P[me].n)+'</div>';
+    if(me==="cc"){
+      h+='<div class="split"><div><div class="lbl">Receitas</div><div class="big">'+money(b.rev)+'</div></div><div><div class="lbl">Capital</div><div class="big">'+money(b.cap)+'</div></div></div>'+
+         '<div class="row"><button type="button" class="btn" data-act="close"'+(lk||b.rev<=0?" disabled":"")+'>Passar Receitas para Capital</button></div>';
+    }else{
+      h+='<div class="big">'+money(b[me])+'</div>';
+    }
+    var n=l[me];
+    h+='<div class="lbl">Empréstimos: '+n+'</div><div class="row">'+
+       '<button type="button" class="btn" data-act="loan"'+(lk?" disabled":"")+'>Pedir +'+LOAN+'¥</button>'+
+       '<button type="button" class="btn" data-act="repay"'+(lk||!n?" disabled":"")+'>Liquidar −'+LOAN+'¥</button>'+
+       '<button type="button" class="btn" data-act="interest"'+(lk||!n?" disabled":"")+'>Pagar juros '+(n*INTEREST)+'¥</button></div>';
+  }
+  $("balance").innerHTML=h;
+
+  $("others").innerHTML=CLS.map(function(c){
+    var sub=c==="cc"?"R "+b.rev+" · C "+b.cap:(l[c]?l[c]+" empr.":" ");
+    if(c==="cc"&&l[c]) sub+=" · "+l[c]+" empr.";
+    return '<div class="tile" data-cls="'+c+'"><span class="nm">'+esc(P[c].s)+(c===me?" (tu)":"")+'</span><b>'+total(b,c)+'¥</b><span>'+esc(sub)+'</span></div>';
+  }).join("");
+
+  if(party===me) party="bank";
+  $("parties").innerHTML=["bank"].concat(CLS).filter(function(c){return c!==me;}).map(function(c){
+    return '<button type="button" class="chip"'+(c!=="bank"?' data-cls="'+c+'"':"")+' data-party="'+c+'" aria-pressed="'+(c===party)+'">'+esc(P[c].s)+'</button>';
+  }).join("");
+  Array.prototype.forEach.call(document.querySelectorAll("[data-dir]"),function(el){ el.setAttribute("aria-pressed",String(el.dataset.dir===dir)); });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-tag]"),function(el){ el.setAttribute("aria-pressed",String(el.dataset.tag===tag)); });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-ccin]"),function(el){ el.setAttribute("aria-pressed",String(el.dataset.ccin===ccIn)); });
+  $("ccin").hidden=!(me==="cc"&&dir==="in");
+  $("amt").innerHTML=money(amt);
+  var go=$("go");
+  go.disabled=lk||amt<=0;
+  go.textContent=!me?"Escolhe a tua classe":amt<=0?"Indica o valor":(dir==="out"?"Pagar "+amt+"¥ "+P[party].a:"Receber "+amt+"¥ "+P[party].d);
+  $("start").disabled=mode==="boot"||readOnly||busy;
+
+  var list=txs.slice().sort(function(x,y){return y.ts-x.ts;}).slice(0,60);
+  $("txlist").innerHTML=list.length?list.map(function(t){
+    var mine=me&&ACCT_CLS[t.to]===me&&ACCT_CLS[t.from]!==me?"in":me&&ACCT_CLS[t.from]===me&&ACCT_CLS[t.to]!==me?"out":"";
+    var d=new Date(t.ts), hh=("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2);
+    var sub=hh+(t.tag?" · "+TAGS[t.tag]:"")+(t.by?" · registado por "+P[t.by].s:"");
+    return '<li class="'+(t.void?"void":"")+'"><div><div class="tx-main">'+esc(ACCT_NAME[t.from])+' → '+esc(ACCT_NAME[t.to])+'</div><div class="tx-sub">'+esc(sub)+'</div></div>'+
+      '<div class="tx-amt '+(t.void?"":mine)+'">'+(mine==="in"?"+":mine==="out"?"−":"")+t.amt+'¥</div>'+
+      '<button type="button" class="mini" data-void="'+esc(t.id)+'"'+(mode==="boot"||readOnly?" disabled":"")+'>'+(t.void?"Repor":"Anular")+'</button></li>';
+  }).join(""):'<li><p class="empty">Ainda não há movimentos.</p></li>';
+}
+
+/* ---------- events ---------- */
+var armed=null, armTimer=null;
+function confirmTap(el,label){
+  if(armed===el){ disarm(); return true; }
+  disarm(); armed=el; el.dataset.label=el.textContent; el.textContent=label; el.classList.add("armed");
+  armTimer=setTimeout(disarm,3000); return false;
+}
+function disarm(){ clearTimeout(armTimer); if(armed&&armed.isConnected){ armed.textContent=armed.dataset.label; armed.classList.remove("armed"); } armed=null; }
+
+document.addEventListener("click",function(ev){
+  var el=ev.target.closest("button"); if(!el||el.disabled) return;
+  var d=el.dataset;
+  if(el!==armed) disarm();
+  if(d.cls&&el.parentNode.id==="classes"){ me=d.cls; try{localStorage.setItem("heg-me",me);}catch(e){} $("msg").textContent=""; render(); }
+  else if(d.dir){ dir=d.dir; render(); }
+  else if(d.party){ party=d.party; render(); }
+  else if(d.ccin){ ccIn=d.ccin; render(); }
+  else if(d.tag){ tag=tag===d.tag?null:d.tag; render(); }
+  else if(d.k){ if(d.k==="c") amt=0; else if(d.k==="b") amt=Math.floor(amt/10); else if(amt<10000) amt=amt*10+Number(d.k); $("msg").textContent=""; render(); }
+  else if(d.add){ amt=Math.min(amt+Number(d.add),99999); $("msg").textContent=""; render(); }
+  else if(el.id==="go"){
+    var n=amt, text=(dir==="out"?"Pagaste "+n+"¥ "+P[party].a:"Recebeste "+n+"¥ "+P[party].d)+".";
+    transfer(dir==="out"?me:party,dir==="out"?party:me,n,tag,null).then(function(ok){ if(ok){ amt=0; tag=null; say(text); render(); } });
+  }
+  else if(d.act==="loan"){ transfer("bank",me,LOAN,"loan",{c:me,n:1}).then(function(ok){ if(ok) say("Empréstimo de "+LOAN+"¥ recebido."); }); }
+  else if(d.act==="repay"){ transfer(me,"bank",LOAN,"repay",{c:me,n:-1}).then(function(ok){ if(ok) say("Empréstimo liquidado."); }); }
+  else if(d.act==="interest"){ var k=balances().l[me]*INTEREST; if(k>0) transfer(me,"bank",k,"jur",null).then(function(ok){ if(ok) say("Juros de "+k+"¥ pagos."); }); }
+  else if(d.act==="close"){
+    var r=balances().b.rev;
+    if(r>0){ busy=true; render(); addTx({from:"rev",to:"cap",amt:r,tag:"mov"}).then(function(){busy=false;say(r+"¥ passaram para Capital.");},function(e){busy=false;writeFailed(e);}).then(render); }
+  }
+  else if(d.void){
+    var t=txs.filter(function(x){return x.id===d.void;})[0];
+    if(t&&(t.void||confirmTap(el,"Confirmar?"))) setVoid(t,!t.void);
+  }
+  else if(el.id==="start"){ if(mode==="local"||!gameId||confirmTap(el,"Confirmar: apagar saldos?")) startGame(); }
+});
+
+render();
+init();
+})();
+</script>
+</body>
+</html>
