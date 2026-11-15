@@ -122,7 +122,12 @@ p.help{font-size:13px;color:var(--muted);margin:0}
 .ask p{margin:0;font-size:16px}
 .ask .btn{border-color:currentColor;background:var(--surface);color:var(--ink)}
 .ask .btn.yes{background:var(--ink);color:var(--surface);border-color:var(--ink)}
-#inbox,#waiting{display:flex;flex-direction:column;gap:8px}
+#waiting{display:flex;flex-direction:column;gap:8px}
+#inbox{position:fixed;inset:0;z-index:8;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:16px}
+#inbox .ask{width:100%;max-width:420px;padding:20px;gap:14px}
+#inbox .ask p{font-size:19px}
+#inbox .ask p.sub{font-size:14px}
+#inbox .ask .btn{padding:14px 16px;font-size:16px;flex:1 1 auto}
 .waitrow{background:var(--surface);border:1px dashed var(--line);border-radius:10px;padding:10px 12px;display:flex;gap:10px;align-items:center;justify-content:space-between;font-size:14px}
 .polrow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font-size:14px}
 .abc{display:grid;grid-template-columns:repeat(3,40px);border:1px solid var(--line);border-radius:8px;overflow:hidden}
@@ -151,7 +156,7 @@ p.help{font-size:13px;color:var(--muted);margin:0}
     <span id="status" class="pill">A ligar…</span>
   </header>
   <div id="notice" hidden></div>
-  <div id="inbox" aria-live="assertive"></div>
+  <div id="inbox" role="alertdialog" aria-modal="true" aria-label="Pedido de pagamento" hidden></div>
   <div id="waiting" aria-live="polite"></div>
 
   <section id="pick" class="card" hidden>
@@ -185,12 +190,6 @@ p.help{font-size:13px;color:var(--muted);margin:0}
       <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button><button type="button" class="q" data-add="10">+10</button>
       <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button><button type="button" class="q" data-add="25">+25</button>
       <button type="button" class="q" data-k="c" aria-label="Limpar">C</button><button type="button" data-k="0">0</button><button type="button" class="q" data-k="b" aria-label="Apagar último dígito">⌫</button><button type="button" class="q" data-add="50">+50</button>
-    </div>
-    <div id="tags" class="chips" role="group" aria-label="Motivo (opcional)">
-      <button type="button" class="chip" data-tag="sal" aria-pressed="false">Salários</button>
-      <button type="button" class="chip" data-tag="imp" aria-pressed="false">Impostos</button>
-      <button type="button" class="chip" data-tag="com" aria-pressed="false">Compra</button>
-      <button type="button" class="chip" data-tag="tax" aria-pressed="false">Taxas</button>
     </div>
     <button type="button" id="go" disabled>Indica o valor</button>
   </section>
@@ -479,11 +478,16 @@ function render(){
   $("notice").hidden=!note; $("notice").textContent=note;
 
   /* requests waiting for my answer, and my own requests */
-  $("inbox").innerHTML=me?reqs.filter(function(r){return r.from===me&&r.st==="wait";}).map(function(r){
-    return '<div class="ask"><p><b>'+esc(P[r.to].N)+'</b> pede-te <b>'+r.amt+'¥</b>'+(r.tag?" ("+esc(TAGS[r.tag])+")":"")+'.</p><div class="row">'+
-      '<button type="button" class="btn yes" data-acc="'+esc(r.id)+'"'+(lk?" disabled":"")+'>Pagar '+r.amt+'¥</button>'+
-      '<button type="button" class="btn" data-rej="'+esc(r.id)+'">Recusar</button></div></div>';
-  }).join(""):"";
+  var asks=me?reqs.filter(function(r){return r.from===me&&r.st==="wait";}):[];
+  $("inbox").hidden=!asks.length;
+  if(asks.length){
+    var r0=asks[0], have=total(b,me), short=have<r0.amt;
+    $("inbox").innerHTML='<div class="ask"><p><b>'+esc(P[r0.to].N)+'</b> pede-te <b>'+r0.amt+'¥</b>.</p>'+
+      '<p class="sub">'+(short?"Só tens "+have+"¥. Pede um empréstimo ou recusa.":"Tens "+have+"¥.")+(asks.length>1?" Há mais "+(asks.length-1)+" pedido(s) a seguir.":"")+'</p><div class="row">'+
+      '<button type="button" class="btn yes" data-acc="'+esc(r0.id)+'"'+(lk||short?" disabled":"")+'>Pagar '+r0.amt+'¥</button>'+
+      (short?'<button type="button" class="btn" data-act="loan"'+(lk?" disabled":"")+'>Pedir empréstimo +'+LOAN+'¥</button>':"")+
+      '<button type="button" class="btn" data-rej="'+esc(r0.id)+'">Recusar</button></div></div>';
+  }else $("inbox").innerHTML="";
   $("waiting").innerHTML=me?reqs.filter(function(r){return r.to===me;}).map(function(r){
     return '<div class="waitrow"><span>'+(r.st==="no"?esc(P[r.from].N)+" recusou o teu pedido de "+r.amt+"¥.":"À espera que "+esc(P[r.from].N.replace(/^[AO] /,function(x){return x.toLowerCase();}))+" aceite pagar-te "+r.amt+"¥.")+'</span>'+
       '<button type="button" class="mini" data-del="'+esc(r.id)+'">'+(r.st==="no"?"OK":"Cancelar")+'</button></div>';
