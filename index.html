@@ -115,6 +115,7 @@ p.help{font-size:13px;color:var(--muted);margin:0}
 #pick .pickgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 #pick .pickgrid button{background:var(--c);color:var(--oc);border:0;border-radius:10px;padding:22px 8px;font:800 17px/1.15 var(--display)}
 #pick .pickgrid button:disabled{background:transparent;color:var(--muted);border:1px dashed var(--line);opacity:1}
+#pname{font:600 18px/1.2 var(--body)}
 #pick .pickgrid small{display:block;font:500 12px/1.3 var(--body);margin-top:4px}
 .linkbtn{background:transparent;border:0;padding:6px 0;color:var(--muted);font-size:13px;text-decoration:underline;align-self:flex-start}
 .linkbtn.armed{color:var(--bad);font-weight:600}
@@ -160,8 +161,9 @@ p.help{font-size:13px;color:var(--muted);margin:0}
   <div id="waiting" aria-live="polite"></div>
 
   <section id="pick" class="card" hidden>
+    <label for="pname">O teu nome<input id="pname" type="text" maxlength="20" autocomplete="off" placeholder="Escreve o teu nome"></label>
     <div class="who">Escolhe a tua classe</div>
-    <p class="help">A escolha fica fixa neste dispositivo até ao fim do jogo.</p>
+    <p class="help" id="pickhelp"></p>
     <div class="pickgrid" id="pickgrid"></div>
     <button type="button" class="linkbtn" id="freeall">Libertar todas as classes</button>
     <button type="button" class="linkbtn" id="endgame2">Terminar jogo</button>
@@ -253,7 +255,9 @@ var CORP=[[300,160,120,60],[200,100,70,40],[100,40,30,20],[50,24,15,10],[25,12,1
 var db=null, mode="boot", readOnly=false, stale=false, staleTimer=null;
 var gameId=null, gameRef=null, L={};
 var txs=[], seats={}, reqs=[], pol={p2:null,p3:null,p4:null,p5:null};
-var seen={}, primed=false;
+var seen={}, primed=false, names={}, myName="";
+try{ myName=(localStorage.getItem("heg-name")||"").trim().slice(0,20); }catch(e){}
+function who(c){ return names[c]?names[c]+" ("+P[c].s+")":P[c].N; }
 var me=null, dir="out", party="bank", ccIn="rev", amt=0, tag=null, busy=false;
 var taxIn={pop:3,mcOut:0,mcOwn:0,ccOwn:4}, taxOpen=false, metaStart=0, DAY=24*60*60*1000;
 var LIM={pop:[3,10],mcOut:[0,30],mcOwn:[0,30],ccOwn:[0,30]};
@@ -316,6 +320,7 @@ function applyGame(g){
   var tx=g.tx||{}, list=Object.keys(tx).map(function(k){return clean(k,tx[k]);}).filter(Boolean);
   seats={}; me=null;
   CLS.forEach(function(c){ if(g.seats&&typeof g.seats[c]==="string"){ seats[c]=g.seats[c]; if(seats[c]===dev) me=c; } });
+  names={}; CLS.forEach(function(c){ var nm=g.names?g.names[c]:null; if(typeof nm==="string"&&nm.trim()) names[c]=nm.trim().slice(0,20); });
   var rq=g.req||{}; reqs=Object.keys(rq).map(function(k){return cleanReq(k,rq[k]);}).filter(Boolean);
   ["p2","p3","p4","p5"].forEach(function(k){ var v=g.pol?g.pol[k]:null; pol[k]=(v==="A"||v==="B"||v==="C")?v:null; });
   notify(list); txs=list; render();
@@ -331,11 +336,11 @@ function notify(list){
         var k=t.grp; if(!inc[k]) inc[k]={amt:0,from:ACCT_CLS[t.from],tag:t.tag}; inc[k].amt+=t.amt;
       }
     }else if(seen[t.id]!==t.void&&mine&&t.by!==me&&t.by){
-      toast(P[t.by].N+(t.void?" anulou":" repôs")+" o movimento de "+t.amt+"¥ ("+ACCT_NAME[t.from]+" → "+ACCT_NAME[t.to]+").",t.void);
+      toast(who(t.by)+(t.void?" anulou":" repôs")+" o movimento de "+t.amt+"¥ ("+ACCT_NAME[t.from]+" → "+ACCT_NAME[t.to]+").",t.void);
     }
     seen[t.id]=t.void;
   });
-  Object.keys(inc).forEach(function(k){ var i=inc[k]; toast("Recebeste "+i.amt+"¥ "+P[i.from].d+(i.tag?" ("+TAGS[i.tag]+")":"")+"."); });
+  Object.keys(inc).forEach(function(k){ var i=inc[k]; toast("Recebeste "+i.amt+"¥ "+(names[i.from]?"de "+who(i.from):P[i.from].d)+(i.tag?" ("+TAGS[i.tag]+")":"")+"."); });
 }
 function writeFailed(e){
   if(e&&/PERMISSION_DENIED/i.test(String(e.code||e.message||e))) readOnly=true;
@@ -401,7 +406,7 @@ function payTax(){
 function useGame(gid){
   if(gid===gameId) return;
   if(gameRef){ gameRef.off(); gameRef=null; }
-  gameId=gid; txs=[]; seats={}; reqs=[]; me=null; seen={}; primed=false; L={}; taxOpen=false; amt=0; tag=null;
+  gameId=gid; txs=[]; seats={}; reqs=[]; names={}; me=null; seen={}; primed=false; L={}; taxOpen=false; amt=0; tag=null;
   pol={p2:null,p3:null,p4:null,p5:null}; loadTax(gid);
   if(mode==="sync"&&gid){
     gameRef=db.ref("hegemony/games/"+gid);
@@ -428,11 +433,11 @@ function endGame(){
   db.ref("hegemony/meta").set(null).then(function(){ return db.ref("hegemony/games/"+g).remove(); }).catch(fail);
 }
 function claim(c){
-  if(me||busy||!gameId||seats[c]) return;
-  if(mode==="local"){ put("seats/"+c,dev); return; }
+  if(me||busy||!gameId||seats[c]||!myName) return;
+  if(mode==="local"){ put("names/"+c,myName); put("seats/"+c,dev); return; }
   busy=true;
   gameRef.child("seats/"+c).transaction(function(cur){ if(cur===null||cur===dev) return dev; })
-    .then(function(res){ busy=false; if(!res.committed) toast("Essa classe acabou de ser escolhida por outro jogador.",true); render(); },
+    .then(function(res){ busy=false; if(!res.committed) toast("Essa classe acabou de ser escolhida por outro jogador.",true); else put("names/"+c,myName).catch(fail); render(); },
           function(e){ busy=false; writeFailed(e); render(); });
 }
 function armStale(){ clearTimeout(staleTimer); staleTimer=setTimeout(function(){stale=true;render();},10000); }
@@ -482,14 +487,14 @@ function render(){
   $("inbox").hidden=!asks.length;
   if(asks.length){
     var r0=asks[0], have=total(b,me), short=have<r0.amt;
-    $("inbox").innerHTML='<div class="ask"><p><b>'+esc(P[r0.to].N)+'</b> pede-te <b>'+r0.amt+'¥</b>.</p>'+
+    $("inbox").innerHTML='<div class="ask"><p><b>'+esc(who(r0.to))+'</b> pede-te <b>'+r0.amt+'¥</b>.</p>'+
       '<p class="sub">'+(short?"Só tens "+have+"¥. Pede um empréstimo ou recusa.":"Tens "+have+"¥.")+(asks.length>1?" Há mais "+(asks.length-1)+" pedido(s) a seguir.":"")+'</p><div class="row">'+
       '<button type="button" class="btn yes" data-acc="'+esc(r0.id)+'"'+(lk||short?" disabled":"")+'>Pagar '+r0.amt+'¥</button>'+
       (short?'<button type="button" class="btn" data-act="loan"'+(lk?" disabled":"")+'>Pedir empréstimo +'+LOAN+'¥</button>':"")+
       '<button type="button" class="btn" data-rej="'+esc(r0.id)+'">Recusar</button></div></div>';
   }else $("inbox").innerHTML="";
   $("waiting").innerHTML=me?reqs.filter(function(r){return r.to===me;}).map(function(r){
-    return '<div class="waitrow"><span>'+(r.st==="no"?esc(P[r.from].N)+" recusou o teu pedido de "+r.amt+"¥.":"À espera que "+esc(P[r.from].N.replace(/^[AO] /,function(x){return x.toLowerCase();}))+" aceite pagar-te "+r.amt+"¥.")+'</span>'+
+    return '<div class="waitrow"><span>'+(r.st==="no"?esc(who(r.from))+" recusou o teu pedido de "+r.amt+"¥.":"À espera que "+esc(names[r.from]?who(r.from):P[r.from].N.replace(/^[AO] /,function(x){return x.toLowerCase();}))+" aceite pagar-te "+r.amt+"¥.")+'</span>'+
       '<button type="button" class="mini" data-del="'+esc(r.id)+'">'+(r.st==="no"?"OK":"Cancelar")+'</button></div>';
   }).join(""):"";
 
@@ -497,8 +502,9 @@ function render(){
   var picking=!me&&!!gameId&&mode!=="boot";
   $("pick").hidden=!picking;
   if(picking) $("pickgrid").innerHTML=CLS.map(function(c){
-    return '<button type="button" data-cls="'+c+'" data-claim="'+c+'"'+(seats[c]||readOnly||busy?" disabled":"")+'>'+esc(P[c].n)+(seats[c]?"<small>Ocupada</small>":"")+'</button>';
+    return '<button type="button" data-cls="'+c+'" data-claim="'+c+'"'+(seats[c]||readOnly||busy||!myName?" disabled":"")+'>'+esc(P[c].n)+(seats[c]?"<small>Ocupada"+(names[c]?" por "+esc(names[c]):"")+"</small>":"")+'</button>';
   }).join("");
+  $("pickhelp").textContent=myName?"A escolha fica fixa neste dispositivo até ao fim do jogo.":"Escreve primeiro o teu nome para poderes escolher a classe.";
   $("freeall").hidden=!CLS.some(function(c){return seats[c];})||readOnly;
 
   ["balance","pay","opentax"].forEach(function(id){ $(id).hidden=!me; });
@@ -511,7 +517,7 @@ function render(){
   $("endgame2").hidden=readOnly;
 
   if(me){
-    var h='<div class="who">'+esc(P[me].n)+'</div>';
+    var h='<div class="who">'+esc(P[me].n)+(names[me]?" · "+esc(names[me]):"")+'</div>';
     if(me==="cc"){
       h+='<div class="split"><div><div class="lbl">Receitas</div><div class="big">'+money(b.rev)+'</div></div><div><div class="lbl">Capital</div><div class="big">'+money(b.cap)+'</div></div></div>'+
          '<div class="row"><button type="button" class="btn" data-act="close"'+(lk||b.rev<=0?" disabled":"")+'>Passar Receitas para Capital</button></div>';
@@ -527,7 +533,7 @@ function render(){
   $("others").innerHTML=CLS.map(function(c){
     var sub=c==="cc"?"R "+b.rev+" · C "+b.cap:(l[c]?l[c]+" empr.":"\u00a0");
     if(c==="cc"&&l[c]) sub+=" · "+l[c]+" empr.";
-    return '<div class="tile" data-cls="'+c+'"><span class="nm">'+esc(P[c].s)+(c===me?" (tu)":"")+'</span><b>'+total(b,c)+'¥</b><span>'+esc(sub)+'</span></div>';
+    return '<div class="tile" data-cls="'+c+'"><span class="nm">'+esc(P[c].s)+'</span><span>'+esc(c===me?"Tu":names[c]||(seats[c]?"Ocupada":"Livre"))+'</span><b>'+total(b,c)+'¥</b><span>'+esc(sub)+'</span></div>';
   }).join("");
 
   if(me){
@@ -569,7 +575,7 @@ function render(){
   $("txlist").innerHTML=list.length?list.map(function(t){
     var mine=me&&ACCT_CLS[t.to]===me&&ACCT_CLS[t.from]!==me?"in":me&&ACCT_CLS[t.from]===me&&ACCT_CLS[t.to]!==me?"out":"";
     var d=new Date(t.ts), hh=("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2);
-    var sub=hh+(t.tag?" · "+TAGS[t.tag]:"")+(t.by?" · registado por "+P[t.by].s:"");
+    var sub=hh+(t.tag?" · "+TAGS[t.tag]:"")+(t.by?" · registado por "+(names[t.by]||P[t.by].s):"");
     return '<li class="'+(t.void?"void":"")+'"><div><div class="tx-main">'+esc(ACCT_NAME[t.from])+' → '+esc(ACCT_NAME[t.to])+'</div><div class="tx-sub">'+esc(sub)+'</div></div>'+
       '<div class="tx-amt '+(t.void?"":mine)+'">'+(mine==="in"?"+":mine==="out"?"−":"")+t.amt+'¥</div>'+
       (me&&t.by===me?'<button type="button" class="mini" data-void="'+esc(t.id)+'"'+(readOnly?" disabled":"")+'>'+(t.void?"Repor":"Anular")+'</button>':'<span></span>')+'</li>';
@@ -593,14 +599,14 @@ document.addEventListener("click",function(ev){
   if(el!==armed) disarm();
 
   if(d.claim){ claim(d.claim); return; }
-  if(el.id==="freeall"){ if(confirmTap(el,"Confirmar: libertar todas as classes?")) put("seats",null).catch(fail); return; }
+  if(el.id==="freeall"){ if(confirmTap(el,"Confirmar: libertar todas as classes?")) { put("seats",null).catch(fail); put("names",null).catch(fail); } return; }
   if(el.id==="start"){ if(!gameId) startGame(); return; }
   if(el.id==="endgame"||el.id==="endgame2"){ if(gameId&&confirmTap(el,"Confirmar: terminar o jogo para todos?")) endGame(); return; }
   if(!me) return; /* nothing else works without a class */
 
   if(el.id==="opentax"){ taxOpen=true; render(); }
   else if(el.id==="closetax"){ taxOpen=false; render(); }
-  else if(el.id==="freeme"){ if(confirmTap(el,"Confirmar: libertar a minha classe?")) put("seats/"+me,null).catch(fail); }
+  else if(el.id==="freeme"){ if(confirmTap(el,"Confirmar: libertar a minha classe?")) { var c0=me; put("names/"+c0,null).catch(fail); put("seats/"+c0,null).catch(fail); } }
   else if(d.dir){ dir=d.dir; render(); }
   else if(d.party){ party=d.party; render(); }
   else if(d.ccin){ ccIn=d.ccin; render(); }
@@ -642,6 +648,8 @@ document.addEventListener("click",function(ev){
   }
 });
 
+$("pname").value=myName;
+$("pname").addEventListener("input",function(){ myName=this.value.trim().slice(0,20); try{localStorage.setItem("heg-name",myName);}catch(e){} render(); });
 setInterval(function(){ if(gameId&&metaStart&&Date.now()-metaStart>=DAY) useGame(null); },60000);
 render();
 init();
