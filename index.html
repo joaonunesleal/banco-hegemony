@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="pt-PT" translate="no">
 <head>
 <meta charset="utf-8">
+<meta name="google" content="notranslate">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Banco do Hegemony</title>
+<title>Banco Hegemony</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -109,27 +110,57 @@ label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mute
 input{font:600 18px/1 var(--num);padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%}
 p.help{font-size:13px;color:var(--muted);margin:0}
 @media (prefers-reduced-motion:no-preference){button{transition:background-color .12s}}
+
+/* v2 */
+#pick .pickgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#pick .pickgrid button{background:var(--c);color:var(--oc);border:0;border-radius:10px;padding:22px 8px;font:800 17px/1.15 var(--display)}
+#pick .pickgrid button:disabled{background:transparent;color:var(--muted);border:1px dashed var(--line);opacity:1}
+#pick .pickgrid small{display:block;font:500 12px/1.3 var(--body);margin-top:4px}
+.linkbtn{background:transparent;border:0;padding:6px 0;color:var(--muted);font-size:13px;text-decoration:underline;align-self:flex-start}
+.linkbtn.armed{color:var(--bad);font-weight:600}
+.ask{background:var(--warn-bg);color:var(--warn-ink);border:2px solid currentColor;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.ask p{margin:0;font-size:16px}
+.ask .btn{border-color:currentColor;background:var(--surface);color:var(--ink)}
+.ask .btn.yes{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+#inbox,#waiting{display:flex;flex-direction:column;gap:8px}
+.waitrow{background:var(--surface);border:1px dashed var(--line);border-radius:10px;padding:10px 12px;display:flex;gap:10px;align-items:center;justify-content:space-between;font-size:14px}
+.polrow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font-size:14px}
+.abc{display:grid;grid-template-columns:repeat(3,40px);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.abc button{background:transparent;border:0;padding:8px 0;font:600 15px/1 var(--num)}
+.abc button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.step{display:grid;grid-template-columns:40px 44px 40px;align-items:center;text-align:center;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.step button{background:var(--bg);border:0;padding:8px 0;font:600 18px/1 var(--num)}
+.step b{font:600 17px/1 var(--num)}
+.calc{font-size:14px;color:var(--muted);margin:0}
+.calc b{color:var(--ink)}
+.paytax{background:var(--cls);color:var(--on);border:0;border-radius:10px;padding:14px;font:800 16px/1.1 var(--display)}
+#toasts{position:fixed;left:0;right:0;bottom:12px;display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 16px;pointer-events:none;z-index:9}
+.toast{pointer-events:auto;max-width:448px;width:100%;background:var(--ink);color:var(--surface);border-radius:10px;padding:12px 14px;font-size:15px;font-weight:500;border-left:6px solid var(--good);cursor:pointer}
+.toast.err{border-left-color:var(--bad)}
+
 </style>
 </head>
 <body>
 <main>
   <header>
-    <h1>Banco do Hegemony</h1>
+    <h1>Banco Hegemony</h1>
     <span id="status" class="pill">A ligar…</span>
   </header>
   <div id="notice" hidden></div>
+  <div id="inbox" aria-live="assertive"></div>
+  <div id="waiting" aria-live="polite"></div>
 
-  <nav id="classes" aria-label="A tua classe">
-    <button type="button" data-cls="wc" aria-pressed="false">Trabalha&shy;dora</button>
-    <button type="button" data-cls="mc" aria-pressed="false">Média</button>
-    <button type="button" data-cls="cc" aria-pressed="false">Capita&shy;lista</button>
-    <button type="button" data-cls="st" aria-pressed="false">Estado</button>
-  </nav>
+  <section id="pick" class="card" hidden>
+    <div class="who">Escolhe a tua classe</div>
+    <p class="help">A escolha fica fixa neste dispositivo até ao fim do jogo.</p>
+    <div class="pickgrid" id="pickgrid"></div>
+    <button type="button" class="linkbtn" id="freeall">Libertar todas as classes</button>
+  </section>
 
-  <section id="balance" class="card" aria-live="polite"></section>
+  <section id="balance" class="card" aria-live="polite" hidden></section>
   <section id="others" aria-label="Saldos de todas as classes"></section>
 
-  <section id="pay" class="card">
+  <section id="pay" class="card" hidden>
     <h2>Movimento</h2>
     <div class="seg" role="group" aria-label="Direção">
       <button type="button" data-dir="out" aria-pressed="true">Pagar</button>
@@ -156,18 +187,20 @@ p.help{font-size:13px;color:var(--muted);margin:0}
       <button type="button" class="chip" data-tag="com" aria-pressed="false">Compra</button>
       <button type="button" class="chip" data-tag="tax" aria-pressed="false">Taxas</button>
     </div>
-    <button type="button" id="go" disabled>Escolhe a tua classe</button>
-    <p id="msg" role="status"></p>
+    <button type="button" id="go" disabled>Indica o valor</button>
   </section>
+
+  <section id="tax" class="card" hidden></section>
 
   <section id="history" class="card">
     <h2>Movimentos</h2>
     <ol id="txlist"></ol>
   </section>
 
-  <details id="newgame" class="card">
-    <summary>Novo jogo</summary>
-    <p class="help">Apaga os saldos de todos e começa com estes valores. Os movimentos do jogo anterior deixam de aparecer.</p>
+  <details id="options" class="card" hidden>
+    <summary>Opções</summary>
+    <h2>Novo jogo</h2>
+    <p class="help">Apaga os saldos de todos, liberta as classes e começa com estes valores.</p>
     <div class="grid2">
       <label for="s-wc">Classe Trabalhadora<input id="s-wc" type="number" inputmode="numeric" min="0" value="30"></label>
       <label for="s-mc">Classe Média<input id="s-mc" type="number" inputmode="numeric" min="0" value="40"></label>
@@ -175,47 +208,72 @@ p.help{font-size:13px;color:var(--muted);margin:0}
       <label for="s-st">Estado<input id="s-st" type="number" inputmode="numeric" min="0" value="120"></label>
     </div>
     <div class="row"><button type="button" class="btn" id="start">Começar novo jogo</button></div>
+    <div class="row" id="freerow"><button type="button" class="btn" id="freeme">Libertar a minha classe</button></div>
   </details>
 </main>
+<div id="toasts" role="status"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
-/* ====== CONFIGURAÇÃO: cola aqui o endereço da tua Realtime Database ====== */
+/* ====== CONFIGURAÇÃO: endereço da Realtime Database ====== */
 var DATABASE_URL = "https://banco-hegemony-default-rtdb.europe-west1.firebasedatabase.app";
-/* exemplo: "https://o-teu-projeto-default-rtdb.europe-west1.firebasedatabase.app" */
 (function(){
 "use strict";
 var CLS=["wc","mc","cc","st"];
 var P={
-  wc:{n:"Classe Trabalhadora",s:"Trabalhadora",a:"à Classe Trabalhadora",d:"da Classe Trabalhadora"},
-  mc:{n:"Classe Média",s:"Média",a:"à Classe Média",d:"da Classe Média"},
-  cc:{n:"Classe Capitalista",s:"Capitalista",a:"à Classe Capitalista",d:"da Classe Capitalista"},
-  st:{n:"Estado",s:"Estado",a:"ao Estado",d:"do Estado"},
-  bank:{n:"Banco",s:"Banco",a:"ao Banco",d:"do Banco"}
+  wc:{n:"Classe Trabalhadora",N:"A Classe Trabalhadora",s:"Trabalhadora",a:"à Classe Trabalhadora",d:"da Classe Trabalhadora"},
+  mc:{n:"Classe Média",N:"A Classe Média",s:"Média",a:"à Classe Média",d:"da Classe Média"},
+  cc:{n:"Classe Capitalista",N:"A Classe Capitalista",s:"Capitalista",a:"à Classe Capitalista",d:"da Classe Capitalista"},
+  st:{n:"Estado",N:"O Estado",s:"Estado",a:"ao Estado",d:"do Estado"},
+  bank:{n:"Banco",N:"O Banco",s:"Banco",a:"ao Banco",d:"do Banco"}
 };
 var ACCT_CLS={wc:"wc",mc:"mc",rev:"cc",cap:"cc",st:"st",bank:"bank"};
 var ACCT_NAME={wc:"Trabalhadora",mc:"Média",rev:"Capitalista (Receitas)",cap:"Capitalista (Capital)",st:"Estado",bank:"Banco"};
 var TAGS={sal:"Salários",imp:"Impostos",com:"Compra",tax:"Taxas",jur:"Juros",loan:"Empréstimo",repay:"Liquidação de empréstimo",start:"Início",mov:"Fecho de receitas"};
 var LOAN=50, INTEREST=5;
+/* Tabelas de impostos do livro de regras */
+var POLS=[["p2","2 · Mercado de Trabalho"],["p3","3 · Tributação"],["p4","4 · Saúde e Benefícios"],["p5","5 · Educação"]];
+var RATE={A:{A:7,B:6,C:5},B:{A:4,B:4,C:4},C:{A:1,B:2,C:3}}; /* RATE[política 2][política 3] */
+var CORP=[[300,160,120,60],[200,100,70,40],[100,40,30,20],[50,24,15,10],[25,12,10,7],[10,5,5,4],[5,1,2,2]]; /* receitas mínimas, A, B, C */
 
-var db=null, mode="boot", readOnly=false, stale=false;
-var gameId=null, col=null, staleTimer=null;
-var txs=[];
+var db=null, mode="boot", readOnly=false, stale=false, staleTimer=null;
+var gameId=null, gameRef=null, L={};
+var txs=[], seats={}, reqs=[], pol={p2:null,p3:null,p4:null,p5:null};
+var seen={}, primed=false;
 var me=null, dir="out", party="bank", ccIn="rev", amt=0, tag=null, busy=false;
+var taxIn={pop:10,mcOut:0,mcOwn:0,ccOwn:4};
+var LIM={pop:[3,10],mcOut:[0,30],mcOwn:[0,30],ccOwn:[0,30]};
 
-try{ var saved=localStorage.getItem("heg-me"); if(CLS.indexOf(saved)>=0) me=saved; }catch(e){}
+function rid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
+var dev=null;
+try{ dev=localStorage.getItem("heg-dev"); if(!dev){ dev="d"+rid(); localStorage.setItem("heg-dev",dev); } }catch(e){ dev=dev||"d"+rid(); }
+try{ var tj=JSON.parse(localStorage.getItem("heg-tax")||"null"); if(tj) Object.keys(LIM).forEach(function(k){ var n=Number(tj[k]); if(Number.isInteger(n)&&n>=LIM[k][0]&&n<=LIM[k][1]) taxIn[k]=n; }); }catch(e){}
 
 function $(id){return document.getElementById(id);}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
 function money(n){return n+'<small>¥</small>';}
+function each(sel,fn){Array.prototype.forEach.call(document.querySelectorAll(sel),fn);}
+
+function toast(text,err){
+  var t=document.createElement("div"); t.className="toast"+(err?" err":""); t.textContent=text;
+  var kill=function(){ if(t.parentNode) t.parentNode.removeChild(t); };
+  t.addEventListener("click",kill); setTimeout(kill,err?9000:7000);
+  $("toasts").appendChild(t);
+}
 
 function clean(id,d){
   if(!d||!(d.from in ACCT_CLS)||!(d.to in ACCT_CLS)||d.from===d.to) return null;
   var a=Number(d.amt), ts=Number(d.ts);
   if(!Number.isInteger(a)||a<=0||a>1000000||!isFinite(ts)) return null;
   var ln=(d.ln===1||d.ln===-1)&&CLS.indexOf(d.lc)>=0?d.ln:0;
-  return {id:id,from:d.from,to:d.to,amt:a,ts:ts,tag:(d.tag in TAGS)?d.tag:null,by:CLS.indexOf(d.by)>=0?d.by:null,void:d.void===true,lc:ln?d.lc:null,ln:ln};
+  return {id:id,from:d.from,to:d.to,amt:a,ts:ts,tag:(d.tag in TAGS)?d.tag:null,by:CLS.indexOf(d.by)>=0?d.by:null,
+          void:d.void===true,lc:ln?d.lc:null,ln:ln,grp:typeof d.grp==="string"?d.grp:id};
+}
+function cleanReq(id,d){
+  if(!d||CLS.indexOf(d.from)<0||CLS.indexOf(d.to)<0||d.from===d.to) return null;
+  var a=Number(d.amt); if(!Number.isInteger(a)||a<=0||a>1000000) return null;
+  return {id:id,from:d.from,to:d.to,amt:a,tag:(d.tag in TAGS)?d.tag:null,inn:d.inn==="cap"?"cap":"rev",st:d.st==="no"?"no":"wait"};
 }
 function balances(){
   var b={wc:0,mc:0,rev:0,cap:0,st:0,bank:0}, l={wc:0,mc:0,cc:0,st:0};
@@ -226,69 +284,113 @@ function balances(){
 function total(b,c){return c==="cc"?b.rev+b.cap:b[c];}
 function locked(){return mode==="boot"||readOnly||!gameId||!me||busy;}
 
-/* ---------- writing ---------- */
-function newId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
-function addTx(d){
-  d.ts=Date.now(); d.by=me; d.void=false;
-  var id=newId();
-  if(mode==="local"){ txs.push(clean(id,d)); return Promise.resolve(); }
-  return col.child(id).set(d);
+/* ---------- storage: one node per game {tx, seats, req, pol} ---------- */
+function put(path,val){
+  if(mode==="local"){
+    var parts=path.split("/"), o=L;
+    for(var i=0;i<parts.length-1;i++){ if(typeof o[parts[i]]!=="object"||!o[parts[i]]) o[parts[i]]={}; o=o[parts[i]]; }
+    if(val===null) delete o[parts[parts.length-1]]; else o[parts[parts.length-1]]=val;
+    applyGame(L); return Promise.resolve();
+  }
+  return gameRef.child(path).set(val);
+}
+function applyGame(g){
+  g=g||{};
+  var tx=g.tx||{}, list=Object.keys(tx).map(function(k){return clean(k,tx[k]);}).filter(Boolean);
+  seats={}; me=null;
+  CLS.forEach(function(c){ if(g.seats&&typeof g.seats[c]==="string"){ seats[c]=g.seats[c]; if(seats[c]===dev) me=c; } });
+  var rq=g.req||{}; reqs=Object.keys(rq).map(function(k){return cleanReq(k,rq[k]);}).filter(Boolean);
+  ["p2","p3","p4","p5"].forEach(function(k){ var v=g.pol?g.pol[k]:null; pol[k]=(v==="A"||v==="B"||v==="C")?v:null; });
+  notify(list); txs=list; render();
+}
+/* Tell this player about money that arrived and about cancelled movements. */
+function notify(list){
+  if(!primed){ list.forEach(function(t){seen[t.id]=t.void;}); primed=true; return; }
+  var inc={};
+  list.forEach(function(t){
+    var mine=me&&(ACCT_CLS[t.to]===me||ACCT_CLS[t.from]===me);
+    if(!(t.id in seen)){
+      if(me&&ACCT_CLS[t.to]===me&&ACCT_CLS[t.from]!==me&&t.by!==me&&!t.void&&t.tag!=="start"){
+        var k=t.grp; if(!inc[k]) inc[k]={amt:0,from:ACCT_CLS[t.from],tag:t.tag}; inc[k].amt+=t.amt;
+      }
+    }else if(seen[t.id]!==t.void&&mine&&t.by!==me&&t.by){
+      toast(P[t.by].N+(t.void?" anulou":" repôs")+" o movimento de "+t.amt+"¥ ("+ACCT_NAME[t.from]+" → "+ACCT_NAME[t.to]+").",t.void);
+    }
+    seen[t.id]=t.void;
+  });
+  Object.keys(inc).forEach(function(k){ var i=inc[k]; toast("Recebeste "+i.amt+"¥ "+P[i.from].d+(i.tag?" ("+TAGS[i.tag]+")":"")+"."); });
 }
 function writeFailed(e){
-  if(e&&/PERMISSION_DENIED/i.test(String(e.code||e.message||e))){ readOnly=true; }
-  else { say("Não consegui gravar. Verifica a ligação e tenta outra vez.",true); }
+  if(e&&/PERMISSION_DENIED/i.test(String(e.code||e.message||e))) readOnly=true;
+  else toast("Não consegui gravar. Verifica a ligação e tenta outra vez.",true);
 }
-function say(text,err){ var m=$("msg"); m.textContent=text; m.className=err?"err":"done"; }
 
-/* Move money between two parties ("wc","mc","cc","st","bank"). The Capitalist pays from Receitas first, then Capital. */
-function transfer(fromP,toP,n,tg,loan){
-  var st=balances(), b=st.b, legs=[];
+/* Move money between two parties. The Capitalist pays from Receitas first, then Capital (loans: Capital first). */
+function transfer(fromP,toP,n,tg,o){
+  o=o||{};
+  var b=balances().b, legs=[];
   if(fromP==="bank"){ legs.push(["bank",n]); }
   else{
     var have=total(b,fromP);
     if(have<n){
-      say((fromP===me?"Só tens ":P[fromP].n+" só tem ")+have+"¥."+(fromP===me?" Pede um empréstimo ao Banco.":""),true);
+      toast((fromP===me?"Só tens ":P[fromP].N+" só tem ")+have+"¥."+(fromP===me?" Pede um empréstimo ao Banco.":""),true);
       return Promise.resolve(false);
     }
-    if(fromP==="cc"){ var r=Math.min(Math.max(b.rev,0),n); if(r>0) legs.push(["rev",r]); if(n-r>0) legs.push(["cap",n-r]); }
-    else legs.push([fromP,n]);
+    if(fromP==="cc"){
+      var first=o.capFirst?"cap":"rev", second=o.capFirst?"rev":"cap", r=Math.min(Math.max(b[first],0),n);
+      if(r>0) legs.push([first,r]); if(n-r>0) legs.push([second,n-r]);
+    }else legs.push([fromP,n]);
   }
-  var to=toP==="cc"?(loan?"cap":(me==="cc"?ccIn:"rev")):toP;
+  var to=o.toAcct||(toP==="cc"?(o.loan?"cap":(me==="cc"?ccIn:"rev")):toP);
+  var grp=rid();
   busy=true; render();
   var p=Promise.resolve();
   legs.forEach(function(leg,i){
     p=p.then(function(){
-      var d={from:leg[0],to:to,amt:leg[1]};
+      var d={from:leg[0],to:to,amt:leg[1],ts:Date.now(),by:me,void:false,grp:grp};
       if(tg) d.tag=tg;
-      if(loan&&i===0){ d.lc=loan.c; d.ln=loan.n; }
-      return addTx(d);
+      if(o.loan&&i===0){ d.lc=o.loan.c; d.ln=o.loan.n; }
+      return put("tx/"+rid(),d);
     });
   });
   return p.then(function(){busy=false;return true;},function(e){busy=false;writeFailed(e);return false;}).then(function(ok){render();return ok;});
 }
-function setVoid(t,v){
-  if(mode==="local"){ t.void=v; render(); return; }
-  col.child(t.id).update({void:v}).catch(function(e){writeFailed(e);render();});
+
+/* ---------- taxes ---------- */
+function polReady(){return pol.p2&&pol.p3&&pol.p4&&pol.p5;}
+function multiplier(){ var m={A:2,B:1,C:0}; return {A:3,B:2,C:1}[pol.p3]+(m[pol.p4]+m[pol.p5])*m[pol.p3]; }
+function corpTax(rev,p3){ var i={A:1,B:2,C:3}[p3]; for(var k=0;k<CORP.length;k++) if(rev>=CORP[k][0]) return CORP[k][i]; return 0; }
+function taxCalc(b){
+  var r=RATE[pol.p2][pol.p3], m=multiplier(), parts=[];
+  if(me==="wc") parts.push(["Rendimento: "+taxIn.pop+" de população × "+r,r*taxIn.pop]);
+  if(me==="mc"){ parts.push(["Rendimento: "+taxIn.mcOut+" empresas × "+r,r*taxIn.mcOut]); parts.push(["Emprego: "+taxIn.mcOwn+" empresas × "+m,m*taxIn.mcOwn]); }
+  if(me==="cc"){
+    var emp=m*taxIn.ccOwn, base=Math.max(b.rev-emp,0);
+    parts.push(["Emprego: "+taxIn.ccOwn+" empresas × "+m,emp]);
+    parts.push(["Lucros: sobre "+base+"¥ de Receitas",corpTax(base,pol.p3)]);
+  }
+  return {parts:parts,total:parts.reduce(function(s,p){return s+p[1];},0)};
+}
+function payTax(){
+  var b=balances().b, c=taxCalc(b);
+  if(c.total<=0) return;
+  if(total(b,me)<c.total){ toast("Deves "+c.total+"¥ de impostos e só tens "+total(b,me)+"¥. Pede um empréstimo ao Banco.",true); return; }
+  var p=Promise.resolve(true);
+  c.parts.forEach(function(part){ if(part[1]>0) p=p.then(function(ok){ return ok?transfer(me,"st",part[1],"imp"):false; }); });
+  p.then(function(ok){ if(ok) toast("Pagaste "+c.total+"¥ de impostos ao Estado."); });
 }
 
-/* ---------- game + subscriptions ---------- */
+/* ---------- game ---------- */
 function useGame(gid){
   if(gid===gameId) return;
-  if(col){ col.off(); col=null; }
-  gameId=gid; txs=[];
-  if(mode!=="sync"||!gid){ render(); return; }
-  col=db.ref("hegemony/games/"+gid+"/tx");
-  col.on("value",function(snap){
-    var v=snap.val()||{};
-    txs=Object.keys(v).map(function(k){return clean(k,v[k]);}).filter(Boolean);
-    render();
-  },subError);
+  if(gameRef){ gameRef.off(); gameRef=null; }
+  gameId=gid; txs=[]; seats={}; reqs=[]; me=null; seen={}; primed=false; L={};
+  if(mode==="sync"&&gid){
+    gameRef=db.ref("hegemony/games/"+gid);
+    gameRef.on("value",function(snap){ applyGame(snap.val()); },function(){ readOnly=true; render(); });
+  }
   render();
 }
-function armStale(){ clearTimeout(staleTimer); staleTimer=setTimeout(function(){stale=true;render();},10000); }
-function clearStale(){ clearTimeout(staleTimer); stale=false; }
-function subError(e){ clearStale(); readOnly=true; render(); }
-
 function startGame(){
   var v={wc:"s-wc",mc:"s-mc",rev:"s-rev",st:"s-st"}, start=[];
   Object.keys(v).forEach(function(k){ var n=Math.floor(Number($(v[k]).value)); if(n>0&&n<=1000000) start.push([k,n]); });
@@ -298,26 +400,35 @@ function startGame(){
   return p.then(function(){
     useGame(gid);
     var q=Promise.resolve();
-    start.forEach(function(s){ q=q.then(function(){return addTx({from:"bank",to:s[0],amt:s[1],tag:"start"});}); });
+    start.forEach(function(s){ q=q.then(function(){return put("tx/"+rid(),{from:"bank",to:s[0],amt:s[1],tag:"start",ts:Date.now(),void:false});}); });
     return q;
-  }).then(function(){busy=false;$("newgame").open=false;say("Novo jogo começado.");},function(e){busy=false;writeFailed(e);}).then(render);
+  }).then(function(){busy=false;$("options").open=false;},function(e){busy=false;writeFailed(e);}).then(render);
 }
-
+function claim(c){
+  if(me||busy||!gameId||seats[c]) return;
+  if(mode==="local"){ put("seats/"+c,dev); return; }
+  busy=true;
+  gameRef.child("seats/"+c).transaction(function(cur){ if(cur===null||cur===dev) return dev; })
+    .then(function(res){ busy=false; if(!res.committed) toast("Essa classe acabou de ser escolhida por outro jogador.",true); render(); },
+          function(e){ busy=false; writeFailed(e); render(); });
+}
+function armStale(){ clearTimeout(staleTimer); staleTimer=setTimeout(function(){stale=true;render();},10000); }
+function clearStale(){ clearTimeout(staleTimer); stale=false; }
 function init(){
   if(!DATABASE_URL||!window.firebase){ mode="local"; startGame(); return; }
   try{ firebase.initializeApp({databaseURL:DATABASE_URL}); db=firebase.database(); }
   catch(e){ mode="local"; startGame(); return; }
   mode="sync"; armStale();
-  var seen=false;
+  var was=false;
   db.ref(".info/connected").on("value",function(snap){
-    if(snap.val()===true){ seen=true; clearStale(); } else if(seen){ stale=true; }
+    if(snap.val()===true){ was=true; clearStale(); } else if(was){ stale=true; }
     render();
   });
   db.ref("hegemony/meta").on("value",function(snap){
     var v=snap.val(), g=v?v.gameId:null;
     if(typeof g==="string"&&/^[a-z0-9]{2,40}$/.test(g)) useGame(g);
-    else if(!gameId){ $("newgame").open=true; render(); }
-  },subError);
+    else if(!gameId){ $("options").open=true; render(); }
+  },function(){ readOnly=true; render(); });
   render();
 }
 
@@ -334,51 +445,88 @@ function render(){
   else { s.textContent="Sincronizado"; s.className="pill ok"; }
 
   var note="";
-  if(mode==="local") note="Falta ligar a base de dados (DATABASE_URL no ficheiro). Os movimentos ficam só neste dispositivo e perdem-se ao fechar a página.";
+  if(mode==="local") note="Falta ligar a base de dados. Os movimentos ficam só neste dispositivo e perdem-se ao fechar a página.";
   else if(readOnly) note="A base de dados recusou o acesso. Confirma as regras (Rules) da Realtime Database no Firebase.";
   else if(stale) note="Não consigo chegar à base de dados. O que vês pode estar desatualizado.";
-  else if(mode==="sync"&&!gameId) note="Ainda não há nenhum jogo. Abre «Novo jogo» em baixo para começar.";
+  else if(mode==="sync"&&!gameId) note="Ainda não há nenhum jogo. Abre «Opções» em baixo e começa um novo jogo.";
   $("notice").hidden=!note; $("notice").textContent=note;
 
-  Array.prototype.forEach.call(document.querySelectorAll("#classes button"),function(el){ el.setAttribute("aria-pressed",String(el.dataset.cls===me)); });
+  /* requests waiting for my answer, and my own requests */
+  $("inbox").innerHTML=me?reqs.filter(function(r){return r.from===me&&r.st==="wait";}).map(function(r){
+    return '<div class="ask"><p><b>'+esc(P[r.to].N)+'</b> pede-te <b>'+r.amt+'¥</b>'+(r.tag?" ("+esc(TAGS[r.tag])+")":"")+'.</p><div class="row">'+
+      '<button type="button" class="btn yes" data-acc="'+esc(r.id)+'"'+(lk?" disabled":"")+'>Pagar '+r.amt+'¥</button>'+
+      '<button type="button" class="btn" data-rej="'+esc(r.id)+'">Recusar</button></div></div>';
+  }).join(""):"";
+  $("waiting").innerHTML=me?reqs.filter(function(r){return r.to===me;}).map(function(r){
+    return '<div class="waitrow"><span>'+(r.st==="no"?esc(P[r.from].N)+" recusou o teu pedido de "+r.amt+"¥.":"À espera que "+esc(P[r.from].N.replace(/^[AO] /,function(x){return x.toLowerCase();}))+" aceite pagar-te "+r.amt+"¥.")+'</span>'+
+      '<button type="button" class="mini" data-del="'+esc(r.id)+'">'+(r.st==="no"?"OK":"Cancelar")+'</button></div>';
+  }).join(""):"";
 
-  var h;
-  if(!me){
-    h='<div class="who">Escolhe a tua classe</div><p class="empty">Toca numa das quatro classes em cima. Podes trocar a qualquer momento.</p>';
-  }else{
-    h='<div class="who">'+esc(P[me].n)+'</div>';
+  /* class picker: only before a class is chosen */
+  var picking=!me&&!!gameId&&mode!=="boot";
+  $("pick").hidden=!picking;
+  if(picking) $("pickgrid").innerHTML=CLS.map(function(c){
+    return '<button type="button" data-cls="'+c+'" data-claim="'+c+'"'+(seats[c]||readOnly||busy?" disabled":"")+'>'+esc(P[c].n)+(seats[c]?"<small>Ocupada</small>":"")+'</button>';
+  }).join("");
+  $("freeall").hidden=!CLS.some(function(c){return seats[c];})||readOnly;
+
+  ["balance","pay","tax"].forEach(function(id){ $(id).hidden=!me; });
+  $("options").hidden=!(me||(!gameId&&mode!=="boot"));
+  $("freerow").hidden=!me;
+
+  if(me){
+    var h='<div class="who">'+esc(P[me].n)+'</div>';
     if(me==="cc"){
       h+='<div class="split"><div><div class="lbl">Receitas</div><div class="big">'+money(b.rev)+'</div></div><div><div class="lbl">Capital</div><div class="big">'+money(b.cap)+'</div></div></div>'+
          '<div class="row"><button type="button" class="btn" data-act="close"'+(lk||b.rev<=0?" disabled":"")+'>Passar Receitas para Capital</button></div>';
-    }else{
-      h+='<div class="big">'+money(b[me])+'</div>';
-    }
+    }else h+='<div class="big">'+money(b[me])+'</div>';
     var n=l[me];
     h+='<div class="lbl">Empréstimos: '+n+'</div><div class="row">'+
        '<button type="button" class="btn" data-act="loan"'+(lk?" disabled":"")+'>Pedir +'+LOAN+'¥</button>'+
        '<button type="button" class="btn" data-act="repay"'+(lk||!n?" disabled":"")+'>Liquidar −'+LOAN+'¥</button>'+
        '<button type="button" class="btn" data-act="interest"'+(lk||!n?" disabled":"")+'>Pagar juros '+(n*INTEREST)+'¥</button></div>';
+    $("balance").innerHTML=h;
   }
-  $("balance").innerHTML=h;
 
   $("others").innerHTML=CLS.map(function(c){
-    var sub=c==="cc"?"R "+b.rev+" · C "+b.cap:(l[c]?l[c]+" empr.":" ");
+    var sub=c==="cc"?"R "+b.rev+" · C "+b.cap:(l[c]?l[c]+" empr.":"\u00a0");
     if(c==="cc"&&l[c]) sub+=" · "+l[c]+" empr.";
     return '<div class="tile" data-cls="'+c+'"><span class="nm">'+esc(P[c].s)+(c===me?" (tu)":"")+'</span><b>'+total(b,c)+'¥</b><span>'+esc(sub)+'</span></div>';
   }).join("");
 
-  if(party===me) party="bank";
-  $("parties").innerHTML=["bank"].concat(CLS).filter(function(c){return c!==me;}).map(function(c){
-    return '<button type="button" class="chip"'+(c!=="bank"?' data-cls="'+c+'"':"")+' data-party="'+c+'" aria-pressed="'+(c===party)+'">'+esc(P[c].s)+'</button>';
-  }).join("");
-  Array.prototype.forEach.call(document.querySelectorAll("[data-dir]"),function(el){ el.setAttribute("aria-pressed",String(el.dataset.dir===dir)); });
-  Array.prototype.forEach.call(document.querySelectorAll("[data-tag]"),function(el){ el.setAttribute("aria-pressed",String(el.dataset.tag===tag)); });
-  Array.prototype.forEach.call(document.querySelectorAll("[data-ccin]"),function(el){ el.setAttribute("aria-pressed",String(el.dataset.ccin===ccIn)); });
-  $("ccin").hidden=!(me==="cc"&&dir==="in");
-  $("amt").innerHTML=money(amt);
-  var go=$("go");
-  go.disabled=lk||amt<=0;
-  go.textContent=!me?"Escolhe a tua classe":amt<=0?"Indica o valor":(dir==="out"?"Pagar "+amt+"¥ "+P[party].a:"Receber "+amt+"¥ "+P[party].d);
+  if(me){
+    if(party===me) party="bank";
+    $("parties").innerHTML=["bank"].concat(CLS).filter(function(c){return c!==me;}).map(function(c){
+      return '<button type="button" class="chip"'+(c!=="bank"?' data-cls="'+c+'"':"")+' data-party="'+c+'" aria-pressed="'+(c===party)+'">'+esc(P[c].s)+'</button>';
+    }).join("");
+    each("[data-dir]",function(el){ el.setAttribute("aria-pressed",String(el.dataset.dir===dir)); });
+    each("[data-tag]",function(el){ el.setAttribute("aria-pressed",String(el.dataset.tag===tag)); });
+    each("[data-ccin]",function(el){ el.setAttribute("aria-pressed",String(el.dataset.ccin===ccIn)); });
+    $("ccin").hidden=!(me==="cc"&&dir==="in");
+    $("amt").innerHTML=money(amt);
+    var go=$("go"), ask=dir==="in"&&party!=="bank"&&seats[party];
+    go.disabled=lk||amt<=0;
+    go.textContent=amt<=0?"Indica o valor":dir==="out"?"Pagar "+amt+"¥ "+P[party].a:ask?"Pedir "+amt+"¥ "+P[party].a:"Receber "+amt+"¥ "+P[party].d;
+
+    /* taxes */
+    var t='<h2>Impostos</h2><p class="help">As políticas são partilhadas: quem as mudar aqui muda-as para todos.</p>';
+    POLS.forEach(function(p){
+      t+='<div class="polrow"><span>'+esc(p[1])+'</span><div class="abc" role="group" aria-label="'+esc(p[1])+'">'+["A","B","C"].map(function(v){
+        return '<button type="button" data-pol="'+p[0]+'" data-v="'+v+'" aria-pressed="'+(pol[p[0]]===v)+'"'+(lk?" disabled":"")+'>'+v+'</button>';}).join("")+'</div></div>';
+    });
+    function stepper(k,label){ return '<div class="polrow"><span>'+esc(label)+'</span><div class="step"><button type="button" data-step="'+k+'" data-d="-1" aria-label="Menos">−</button><b>'+taxIn[k]+'</b><button type="button" data-step="'+k+'" data-d="1" aria-label="Mais">+</button></div></div>'; }
+    if(!polReady()) t+='<p class="calc">Escolhe A, B ou C nas quatro políticas para calcular os impostos.</p>';
+    else if(me==="st") t+='<p class="calc">Multiplicador fiscal: <b>'+multiplier()+'</b>. O Estado não paga impostos.</p>';
+    else{
+      if(me==="wc") t+=stepper("pop","População");
+      if(me==="mc") t+=stepper("mcOut","Empresas de outros onde tens trabalhadores")+stepper("mcOwn","Empresas tuas operacionais");
+      if(me==="cc") t+=stepper("ccOwn","Empresas operacionais");
+      var c=taxCalc(b);
+      t+='<p class="calc">'+(me!=="wc"?"Multiplicador fiscal: <b>"+multiplier()+"</b><br>":"")+c.parts.map(function(p){return esc(p[0])+" = <b>"+p[1]+"¥</b>";}).join("<br>")+'</p>'+
+         '<button type="button" class="paytax" data-act="tax"'+(lk||c.total<=0?" disabled":"")+'>Pagar '+c.total+'¥ de impostos ao Estado</button>';
+    }
+    $("tax").innerHTML=t;
+  }
   $("start").disabled=mode==="boot"||readOnly||busy;
 
   var list=txs.slice().sort(function(x,y){return y.ts-x.ts;}).slice(0,60);
@@ -388,7 +536,7 @@ function render(){
     var sub=hh+(t.tag?" · "+TAGS[t.tag]:"")+(t.by?" · registado por "+P[t.by].s:"");
     return '<li class="'+(t.void?"void":"")+'"><div><div class="tx-main">'+esc(ACCT_NAME[t.from])+' → '+esc(ACCT_NAME[t.to])+'</div><div class="tx-sub">'+esc(sub)+'</div></div>'+
       '<div class="tx-amt '+(t.void?"":mine)+'">'+(mine==="in"?"+":mine==="out"?"−":"")+t.amt+'¥</div>'+
-      '<button type="button" class="mini" data-void="'+esc(t.id)+'"'+(mode==="boot"||readOnly?" disabled":"")+'>'+(t.void?"Repor":"Anular")+'</button></li>';
+      (me&&t.by===me?'<button type="button" class="mini" data-void="'+esc(t.id)+'"'+(readOnly?" disabled":"")+'>'+(t.void?"Repor":"Anular")+'</button>':'<span></span>')+'</li>';
   }).join(""):'<li><p class="empty">Ainda não há movimentos.</p></li>';
 }
 
@@ -400,34 +548,59 @@ function confirmTap(el,label){
   armTimer=setTimeout(disarm,3000); return false;
 }
 function disarm(){ clearTimeout(armTimer); if(armed&&armed.isConnected){ armed.textContent=armed.dataset.label; armed.classList.remove("armed"); } armed=null; }
+function findReq(id){ return reqs.filter(function(r){return r.id===id;})[0]; }
+function fail(e){ writeFailed(e); render(); }
 
 document.addEventListener("click",function(ev){
   var el=ev.target.closest("button"); if(!el||el.disabled) return;
   var d=el.dataset;
   if(el!==armed) disarm();
-  if(d.cls&&el.parentNode.id==="classes"){ me=d.cls; try{localStorage.setItem("heg-me",me);}catch(e){} $("msg").textContent=""; render(); }
+
+  if(d.claim){ claim(d.claim); return; }
+  if(el.id==="freeall"){ if(confirmTap(el,"Confirmar: libertar todas as classes?")) put("seats",null).catch(fail); return; }
+  if(el.id==="start"){ if(mode==="local"||!gameId||confirmTap(el,"Confirmar: apagar saldos e classes?")) startGame(); return; }
+  if(!me) return; /* nothing else works without a class */
+
+  if(el.id==="freeme"){ if(confirmTap(el,"Confirmar: libertar a minha classe?")) put("seats/"+me,null).catch(fail); }
   else if(d.dir){ dir=d.dir; render(); }
   else if(d.party){ party=d.party; render(); }
   else if(d.ccin){ ccIn=d.ccin; render(); }
   else if(d.tag){ tag=tag===d.tag?null:d.tag; render(); }
-  else if(d.k){ if(d.k==="c") amt=0; else if(d.k==="b") amt=Math.floor(amt/10); else if(amt<10000) amt=amt*10+Number(d.k); $("msg").textContent=""; render(); }
-  else if(d.add){ amt=Math.min(amt+Number(d.add),99999); $("msg").textContent=""; render(); }
+  else if(d.k){ if(d.k==="c") amt=0; else if(d.k==="b") amt=Math.floor(amt/10); else if(amt<10000) amt=amt*10+Number(d.k); render(); }
+  else if(d.add){ amt=Math.min(amt+Number(d.add),99999); render(); }
   else if(el.id==="go"){
-    var n=amt, text=(dir==="out"?"Pagaste "+n+"¥ "+P[party].a:"Recebeste "+n+"¥ "+P[party].d)+".";
-    transfer(dir==="out"?me:party,dir==="out"?party:me,n,tag,null).then(function(ok){ if(ok){ amt=0; tag=null; say(text); render(); } });
+    var n=amt;
+    if(dir==="in"&&party!=="bank"&&seats[party]){
+      var r={from:party,to:me,amt:n,st:"wait",ts:Date.now()}; if(tag) r.tag=tag; if(me==="cc") r.inn=ccIn;
+      put("req/"+rid(),r).then(function(){ amt=0; tag=null; render(); },fail);
+    }else{
+      var text=(dir==="out"?"Pagaste "+n+"¥ "+P[party].a:"Recebeste "+n+"¥ "+P[party].d)+".";
+      transfer(dir==="out"?me:party,dir==="out"?party:me,n,tag).then(function(ok){ if(ok){ amt=0; tag=null; toast(text); render(); } });
+    }
   }
-  else if(d.act==="loan"){ transfer("bank",me,LOAN,"loan",{c:me,n:1}).then(function(ok){ if(ok) say("Empréstimo de "+LOAN+"¥ recebido."); }); }
-  else if(d.act==="repay"){ transfer(me,"bank",LOAN,"repay",{c:me,n:-1}).then(function(ok){ if(ok) say("Empréstimo liquidado."); }); }
-  else if(d.act==="interest"){ var k=balances().l[me]*INTEREST; if(k>0) transfer(me,"bank",k,"jur",null).then(function(ok){ if(ok) say("Juros de "+k+"¥ pagos."); }); }
+  else if(d.acc){
+    var q=findReq(d.acc);
+    if(q&&q.from===me) transfer(me,q.to,q.amt,q.tag,{toAcct:q.to==="cc"?q.inn:null}).then(function(ok){ if(ok){ toast("Pagaste "+q.amt+"¥ "+P[q.to].a+"."); return put("req/"+q.id,null); } }).catch(fail);
+  }
+  else if(d.rej){ put("req/"+d.rej+"/st","no").catch(fail); }
+  else if(d.del){ put("req/"+d.del,null).catch(fail); }
+  else if(d.pol){ put("pol/"+d.pol,d.v).catch(fail); }
+  else if(d.step){
+    var k=d.step, v=taxIn[k]+Number(d.d);
+    if(v>=LIM[k][0]&&v<=LIM[k][1]){ taxIn[k]=v; try{localStorage.setItem("heg-tax",JSON.stringify(taxIn));}catch(e){} render(); }
+  }
+  else if(d.act==="tax"){ payTax(); }
+  else if(d.act==="loan"){ transfer("bank",me,LOAN,"loan",{loan:{c:me,n:1}}).then(function(ok){ if(ok) toast("Empréstimo de "+LOAN+"¥ recebido."); }); }
+  else if(d.act==="repay"){ transfer(me,"bank",LOAN,"repay",{loan:{c:me,n:-1},capFirst:true}).then(function(ok){ if(ok) toast("Empréstimo liquidado."); }); }
+  else if(d.act==="interest"){ var i=balances().l[me]*INTEREST; if(i>0) transfer(me,"bank",i,"jur",{capFirst:true}).then(function(ok){ if(ok) toast("Juros de "+i+"¥ pagos."); }); }
   else if(d.act==="close"){
-    var r=balances().b.rev;
-    if(r>0){ busy=true; render(); addTx({from:"rev",to:"cap",amt:r,tag:"mov"}).then(function(){busy=false;say(r+"¥ passaram para Capital.");},function(e){busy=false;writeFailed(e);}).then(render); }
+    var rv=balances().b.rev;
+    if(rv>0){ busy=true; render(); put("tx/"+rid(),{from:"rev",to:"cap",amt:rv,tag:"mov",ts:Date.now(),by:me,void:false}).then(function(){busy=false;toast(rv+"¥ passaram para Capital.");},function(e){busy=false;writeFailed(e);}).then(render); }
   }
   else if(d.void){
     var t=txs.filter(function(x){return x.id===d.void;})[0];
-    if(t&&(t.void||confirmTap(el,"Confirmar?"))) setVoid(t,!t.void);
+    if(t&&t.by===me&&(t.void||confirmTap(el,"Confirmar?"))) put("tx/"+t.id+"/void",!t.void).catch(fail);
   }
-  else if(el.id==="start"){ if(mode==="local"||!gameId||confirmTap(el,"Confirmar: apagar saldos?")) startGame(); }
 });
 
 render();
