@@ -137,6 +137,10 @@ p.help{font-size:13px;color:var(--muted);margin:0}
 #toasts{position:fixed;left:0;right:0;bottom:12px;display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 16px;pointer-events:none;z-index:9}
 .toast{pointer-events:auto;max-width:448px;width:100%;background:var(--ink);color:var(--surface);border-radius:10px;padding:12px 14px;font-size:15px;font-weight:500;border-left:6px solid var(--good);cursor:pointer}
 .toast.err{border-left-color:var(--bad)}
+#taxwin{position:fixed;inset:0;z-index:5;background:var(--bg);overflow:auto}
+#taxwin .inner{max-width:480px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+#opentax{background:var(--surface)}
+#options>div{display:flex;flex-direction:column;gap:12px}
 
 </style>
 </head>
@@ -155,6 +159,7 @@ p.help{font-size:13px;color:var(--muted);margin:0}
     <p class="help">A escolha fica fixa neste dispositivo até ao fim do jogo.</p>
     <div class="pickgrid" id="pickgrid"></div>
     <button type="button" class="linkbtn" id="freeall">Libertar todas as classes</button>
+    <button type="button" class="linkbtn" id="endgame2">Terminar jogo</button>
   </section>
 
   <section id="balance" class="card" aria-live="polite" hidden></section>
@@ -190,7 +195,7 @@ p.help{font-size:13px;color:var(--muted);margin:0}
     <button type="button" id="go" disabled>Indica o valor</button>
   </section>
 
-  <section id="tax" class="card" hidden></section>
+  <button type="button" class="btn" id="opentax" hidden>Impostos</button>
 
   <section id="history" class="card">
     <h2>Movimentos</h2>
@@ -199,18 +204,27 @@ p.help{font-size:13px;color:var(--muted);margin:0}
 
   <details id="options" class="card" hidden>
     <summary>Opções</summary>
-    <h2>Novo jogo</h2>
-    <p class="help">Apaga os saldos de todos, liberta as classes e começa com estes valores.</p>
-    <div class="grid2">
-      <label for="s-wc">Classe Trabalhadora<input id="s-wc" type="number" inputmode="numeric" min="0" value="30"></label>
-      <label for="s-mc">Classe Média<input id="s-mc" type="number" inputmode="numeric" min="0" value="40"></label>
-      <label for="s-rev">Capitalista (Receitas)<input id="s-rev" type="number" inputmode="numeric" min="0" value="120"></label>
-      <label for="s-st">Estado<input id="s-st" type="number" inputmode="numeric" min="0" value="120"></label>
+    <div id="newbox">
+      <h2>Novo jogo</h2>
+      <p class="help">Não há nenhum jogo a decorrer. Cada classe começa com estes valores.</p>
+      <div class="grid2">
+        <label for="s-wc">Classe Trabalhadora<input id="s-wc" type="number" inputmode="numeric" min="0" value="30"></label>
+        <label for="s-mc">Classe Média<input id="s-mc" type="number" inputmode="numeric" min="0" value="40"></label>
+        <label for="s-rev">Capitalista (Receitas)<input id="s-rev" type="number" inputmode="numeric" min="0" value="120"></label>
+        <label for="s-st">Estado<input id="s-st" type="number" inputmode="numeric" min="0" value="120"></label>
+      </div>
+      <div class="row"><button type="button" class="btn" id="start">Começar novo jogo</button></div>
     </div>
-    <div class="row"><button type="button" class="btn" id="start">Começar novo jogo</button></div>
+    <div class="row" id="endrow"><button type="button" class="btn" id="endgame">Terminar jogo</button></div>
     <div class="row" id="freerow"><button type="button" class="btn" id="freeme">Libertar a minha classe</button></div>
   </details>
 </main>
+<div id="taxwin" hidden>
+  <div class="inner">
+    <header><h1>Impostos</h1><button type="button" class="btn" id="closetax">Fechar</button></header>
+    <section id="tax" class="card"></section>
+  </div>
+</div>
 <div id="toasts" role="status"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -242,13 +256,17 @@ var gameId=null, gameRef=null, L={};
 var txs=[], seats={}, reqs=[], pol={p2:null,p3:null,p4:null,p5:null};
 var seen={}, primed=false;
 var me=null, dir="out", party="bank", ccIn="rev", amt=0, tag=null, busy=false;
-var taxIn={pop:10,mcOut:0,mcOwn:0,ccOwn:4};
+var taxIn={pop:3,mcOut:0,mcOwn:0,ccOwn:4}, taxOpen=false, metaStart=0, DAY=24*60*60*1000;
 var LIM={pop:[3,10],mcOut:[0,30],mcOwn:[0,30],ccOwn:[0,30]};
 
 function rid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
 var dev=null;
 try{ dev=localStorage.getItem("heg-dev"); if(!dev){ dev="d"+rid(); localStorage.setItem("heg-dev",dev); } }catch(e){ dev=dev||"d"+rid(); }
-try{ var tj=JSON.parse(localStorage.getItem("heg-tax")||"null"); if(tj) Object.keys(LIM).forEach(function(k){ var n=Number(tj[k]); if(Number.isInteger(n)&&n>=LIM[k][0]&&n<=LIM[k][1]) taxIn[k]=n; }); }catch(e){}
+/* Tax inputs are remembered per game on this device. */
+function loadTax(gid){
+  taxIn={pop:3,mcOut:0,mcOwn:0,ccOwn:4};
+  try{ var tj=JSON.parse(localStorage.getItem("heg-tax")||"null"); if(tj&&tj.g===gid) Object.keys(LIM).forEach(function(k){ var n=Number(tj[k]); if(Number.isInteger(n)&&n>=LIM[k][0]&&n<=LIM[k][1]) taxIn[k]=n; }); }catch(e){}
+}
 
 function $(id){return document.getElementById(id);}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
@@ -377,14 +395,15 @@ function payTax(){
   if(total(b,me)<c.total){ toast("Deves "+c.total+"¥ de impostos e só tens "+total(b,me)+"¥. Pede um empréstimo ao Banco.",true); return; }
   var p=Promise.resolve(true);
   c.parts.forEach(function(part){ if(part[1]>0) p=p.then(function(ok){ return ok?transfer(me,"st",part[1],"imp"):false; }); });
-  p.then(function(ok){ if(ok) toast("Pagaste "+c.total+"¥ de impostos ao Estado."); });
+  p.then(function(ok){ if(ok){ taxOpen=false; toast("Pagaste "+c.total+"¥ de impostos ao Estado."); render(); } });
 }
 
 /* ---------- game ---------- */
 function useGame(gid){
   if(gid===gameId) return;
   if(gameRef){ gameRef.off(); gameRef=null; }
-  gameId=gid; txs=[]; seats={}; reqs=[]; me=null; seen={}; primed=false; L={};
+  gameId=gid; txs=[]; seats={}; reqs=[]; me=null; seen={}; primed=false; L={}; taxOpen=false; amt=0; tag=null;
+  pol={p2:null,p3:null,p4:null,p5:null}; loadTax(gid);
   if(mode==="sync"&&gid){
     gameRef=db.ref("hegemony/games/"+gid);
     gameRef.on("value",function(snap){ applyGame(snap.val()); },function(){ readOnly=true; render(); });
@@ -394,7 +413,7 @@ function useGame(gid){
 function startGame(){
   var v={wc:"s-wc",mc:"s-mc",rev:"s-rev",st:"s-st"}, start=[];
   Object.keys(v).forEach(function(k){ var n=Math.floor(Number($(v[k]).value)); if(n>0&&n<=1000000) start.push([k,n]); });
-  var gid="g"+Date.now().toString(36);
+  var gid="g"+Date.now().toString(36); metaStart=Date.now();
   busy=true; render();
   var p=mode==="sync"?db.ref("hegemony/meta").set({gameId:gid,startedAt:Date.now()}):Promise.resolve();
   return p.then(function(){
@@ -403,6 +422,11 @@ function startGame(){
     start.forEach(function(s){ q=q.then(function(){return put("tx/"+rid(),{from:"bank",to:s[0],amt:s[1],tag:"start",ts:Date.now(),void:false});}); });
     return q;
   }).then(function(){busy=false;$("options").open=false;},function(e){busy=false;writeFailed(e);}).then(render);
+}
+function endGame(){
+  var g=gameId;
+  if(mode!=="sync"){ useGame(null); return; }
+  db.ref("hegemony/meta").set(null).then(function(){ return db.ref("hegemony/games/"+g).remove(); }).catch(fail);
 }
 function claim(c){
   if(me||busy||!gameId||seats[c]) return;
@@ -415,9 +439,9 @@ function claim(c){
 function armStale(){ clearTimeout(staleTimer); staleTimer=setTimeout(function(){stale=true;render();},10000); }
 function clearStale(){ clearTimeout(staleTimer); stale=false; }
 function init(){
-  if(!DATABASE_URL||!window.firebase){ mode="local"; startGame(); return; }
+  if(!DATABASE_URL||!window.firebase){ mode="local"; render(); return; }
   try{ firebase.initializeApp({databaseURL:DATABASE_URL}); db=firebase.database(); }
-  catch(e){ mode="local"; startGame(); return; }
+  catch(e){ mode="local"; render(); return; }
   mode="sync"; armStale();
   var was=false;
   db.ref(".info/connected").on("value",function(snap){
@@ -426,8 +450,11 @@ function init(){
   });
   db.ref("hegemony/meta").on("value",function(snap){
     var v=snap.val(), g=v?v.gameId:null;
-    if(typeof g==="string"&&/^[a-z0-9]{2,40}$/.test(g)) useGame(g);
-    else if(!gameId){ $("options").open=true; render(); }
+    var at=v?Number(v.startedAt):0;
+    /* a game ends by itself one day after it started */
+    if(typeof g==="string"&&/^[a-z0-9]{2,40}$/.test(g)&&Date.now()-at<DAY){ metaStart=at; useGame(g); }
+    else useGame(null);
+    render();
   },function(){ readOnly=true; render(); });
   render();
 }
@@ -448,7 +475,7 @@ function render(){
   if(mode==="local") note="Falta ligar a base de dados. Os movimentos ficam só neste dispositivo e perdem-se ao fechar a página.";
   else if(readOnly) note="A base de dados recusou o acesso. Confirma as regras (Rules) da Realtime Database no Firebase.";
   else if(stale) note="Não consigo chegar à base de dados. O que vês pode estar desatualizado.";
-  else if(mode==="sync"&&!gameId) note="Ainda não há nenhum jogo. Abre «Opções» em baixo e começa um novo jogo.";
+  
   $("notice").hidden=!note; $("notice").textContent=note;
 
   /* requests waiting for my answer, and my own requests */
@@ -470,9 +497,14 @@ function render(){
   }).join("");
   $("freeall").hidden=!CLS.some(function(c){return seats[c];})||readOnly;
 
-  ["balance","pay","tax"].forEach(function(id){ $(id).hidden=!me; });
-  $("options").hidden=!(me||(!gameId&&mode!=="boot"));
-  $("freerow").hidden=!me;
+  ["balance","pay","opentax"].forEach(function(id){ $(id).hidden=!me; });
+  if(!me) taxOpen=false;
+  $("taxwin").hidden=!taxOpen;
+  var nogame=!gameId&&mode!=="boot";
+  $("options").hidden=!(me||nogame);
+  if(nogame) $("options").open=true;
+  $("newbox").hidden=!!gameId; $("endrow").hidden=!gameId; $("freerow").hidden=!me;
+  $("endgame2").hidden=readOnly;
 
   if(me){
     var h='<div class="who">'+esc(P[me].n)+'</div>';
@@ -558,10 +590,13 @@ document.addEventListener("click",function(ev){
 
   if(d.claim){ claim(d.claim); return; }
   if(el.id==="freeall"){ if(confirmTap(el,"Confirmar: libertar todas as classes?")) put("seats",null).catch(fail); return; }
-  if(el.id==="start"){ if(mode==="local"||!gameId||confirmTap(el,"Confirmar: apagar saldos e classes?")) startGame(); return; }
+  if(el.id==="start"){ if(!gameId) startGame(); return; }
+  if(el.id==="endgame"||el.id==="endgame2"){ if(gameId&&confirmTap(el,"Confirmar: terminar o jogo para todos?")) endGame(); return; }
   if(!me) return; /* nothing else works without a class */
 
-  if(el.id==="freeme"){ if(confirmTap(el,"Confirmar: libertar a minha classe?")) put("seats/"+me,null).catch(fail); }
+  if(el.id==="opentax"){ taxOpen=true; render(); }
+  else if(el.id==="closetax"){ taxOpen=false; render(); }
+  else if(el.id==="freeme"){ if(confirmTap(el,"Confirmar: libertar a minha classe?")) put("seats/"+me,null).catch(fail); }
   else if(d.dir){ dir=d.dir; render(); }
   else if(d.party){ party=d.party; render(); }
   else if(d.ccin){ ccIn=d.ccin; render(); }
@@ -587,7 +622,7 @@ document.addEventListener("click",function(ev){
   else if(d.pol){ put("pol/"+d.pol,d.v).catch(fail); }
   else if(d.step){
     var k=d.step, v=taxIn[k]+Number(d.d);
-    if(v>=LIM[k][0]&&v<=LIM[k][1]){ taxIn[k]=v; try{localStorage.setItem("heg-tax",JSON.stringify(taxIn));}catch(e){} render(); }
+    if(v>=LIM[k][0]&&v<=LIM[k][1]){ taxIn[k]=v; try{ var sv={g:gameId}; Object.keys(LIM).forEach(function(x){sv[x]=taxIn[x];}); localStorage.setItem("heg-tax",JSON.stringify(sv)); }catch(e){} render(); }
   }
   else if(d.act==="tax"){ payTax(); }
   else if(d.act==="loan"){ transfer("bank",me,LOAN,"loan",{loan:{c:me,n:1}}).then(function(ok){ if(ok) toast("Empréstimo de "+LOAN+"¥ recebido."); }); }
@@ -603,6 +638,7 @@ document.addEventListener("click",function(ev){
   }
 });
 
+setInterval(function(){ if(gameId&&metaStart&&Date.now()-metaStart>=DAY) useGame(null); },60000);
 render();
 init();
 })();
