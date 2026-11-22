@@ -76,7 +76,7 @@ h2{font:700 13px/1 var(--display);margin:0;text-transform:uppercase;letter-spaci
 .tile span{display:block;font-size:11px;color:var(--muted);overflow-wrap:anywhere}
 .tile .nm{font:700 11px/1.2 var(--display);color:var(--ink)}
 /* pay panel */
-.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg button{background:transparent;border:0;padding:10px;font-weight:600}
 .seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
@@ -139,6 +139,7 @@ p.help{font-size:13px;color:var(--muted);margin:0}
 .step b{font:600 17px/1 var(--num)}
 .calc{font-size:14px;color:var(--muted);margin:0}
 .calc b{color:var(--ink)}
+.mv input{width:110px;font-size:16px;padding:9px 10px}
 .paytax{background:var(--cls);color:var(--on);border:0;border-radius:10px;padding:14px;font:800 16px/1.1 var(--display)}
 #toasts{position:fixed;left:0;right:0;bottom:12px;display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 16px;pointer-events:none;z-index:9}
 .toast{pointer-events:auto;max-width:448px;width:100%;background:var(--ink);color:var(--surface);border-radius:10px;padding:12px 14px;font-size:15px;font-weight:500;border-left:6px solid var(--good);cursor:pointer}
@@ -177,6 +178,7 @@ p.help{font-size:13px;color:var(--muted);margin:0}
     <div class="seg" role="group" aria-label="Direção">
       <button type="button" data-dir="out" aria-pressed="true">Pagar</button>
       <button type="button" data-dir="in" aria-pressed="false">Receber</button>
+      <button type="button" data-dir="prov" aria-pressed="false" hidden>Fornecer</button>
     </div>
     <div id="parties" class="chips" role="group" aria-label="Com quem"></div>
     <div id="ccin" class="row" hidden>
@@ -241,11 +243,14 @@ var P={
   mc:{n:"Classe Média",N:"A Classe Média",s:"Média",a:"à Classe Média",d:"da Classe Média"},
   cc:{n:"Classe Capitalista",N:"A Classe Capitalista",s:"Capitalista",a:"à Classe Capitalista",d:"da Classe Capitalista"},
   st:{n:"Estado",N:"O Estado",s:"Estado",a:"ao Estado",d:"do Estado"},
-  bank:{n:"Banco",N:"O Banco",s:"Banco",a:"ao Banco",d:"do Banco"}
+  bank:{n:"Banco",N:"O Banco",s:"Banco",a:"ao Banco",d:"do Banco"},
+  ben:{n:"Benefícios do Estado",N:"Os Benefícios do Estado",s:"Benefícios",a:"aos Benefícios",d:"dos Benefícios do Estado"}
 };
-var ACCT_CLS={wc:"wc",mc:"mc",rev:"cc",cap:"cc",st:"st",bank:"bank"};
-var ACCT_NAME={wc:"Trabalhadora",mc:"Média",rev:"Capitalista (Receitas)",cap:"Capitalista (Capital)",st:"Estado",bank:"Banco"};
-var TAGS={sal:"Salários",imp:"Impostos",com:"Compra",tax:"Taxas",jur:"Juros",loan:"Empréstimo",repay:"Liquidação de empréstimo",start:"Início",mov:"Fecho de receitas"};
+var ACCT_CLS={wc:"wc",mc:"mc",rev:"cc",cap:"cc",st:"st",bank:"bank",bwc:"ben",bmc:"ben",bcc:"ben"};
+/* State Benefits area of each class: money the State provided and that class has not collected yet */
+var BEN={wc:"bwc",mc:"bmc",cc:"bcc"};
+var ACCT_NAME={wc:"Trabalhadora",mc:"Média",rev:"Capitalista (Receitas)",cap:"Capitalista (Capital)",st:"Estado",bank:"Banco",bwc:"Benefícios (Trabalhadora)",bmc:"Benefícios (Média)",bcc:"Benefícios (Capitalista)"};
+var TAGS={sal:"Salários",imp:"Impostos",com:"Compra",tax:"Taxas",jur:"Juros",loan:"Empréstimo",repay:"Liquidação de empréstimo",start:"Início",mov:"Fecho de receitas",forn:"Benefícios fornecidos",ben:"Benefícios recebidos",desc:"Benefícios descartados"};
 var LOAN=50, INTEREST=5;
 /* Tabelas de impostos do livro de regras */
 var POLS=[["p2","2 · Mercado de Trabalho"],["p3","3 · Tributação"],["p4","4 · Saúde e Benefícios"],["p5","5 · Educação"]];
@@ -255,6 +260,7 @@ var CORP=[[300,160,120,60],[200,100,70,40],[100,40,30,20],[50,24,15,10],[25,12,1
 var db=null, mode="boot", readOnly=false, stale=false, staleTimer=null;
 var gameId=null, gameRef=null, L={};
 var txs=[], seats={}, reqs=[], pol={p2:null,p3:null,p4:null,p5:null};
+var mvAmt=0;
 var seen={}, primed=false, names={}, myName="";
 try{ myName=(localStorage.getItem("heg-name")||"").trim().slice(0,20); }catch(e){}
 function who(c){ return names[c]?names[c]+" ("+P[c].s+")":P[c].N; }
@@ -297,7 +303,7 @@ function cleanReq(id,d){
   return {id:id,from:d.from,to:d.to,amt:a,tag:(d.tag in TAGS)?d.tag:null,inn:d.inn==="cap"?"cap":"rev",st:d.st==="no"?"no":"wait"};
 }
 function balances(){
-  var b={wc:0,mc:0,rev:0,cap:0,st:0,bank:0}, l={wc:0,mc:0,cc:0,st:0};
+  var b={wc:0,mc:0,rev:0,cap:0,st:0,bank:0,bwc:0,bmc:0,bcc:0}, l={wc:0,mc:0,cc:0,st:0};
   txs.forEach(function(t){ if(t.void) return; b[t.from]-=t.amt; b[t.to]+=t.amt; if(t.ln) l[t.lc]+=t.ln; });
   CLS.forEach(function(c){ if(l[c]<0) l[c]=0; });
   return {b:b,l:l};
@@ -332,6 +338,7 @@ function notify(list){
   list.forEach(function(t){
     var mine=me&&(ACCT_CLS[t.to]===me||ACCT_CLS[t.from]===me);
     if(!(t.id in seen)){
+      if(me&&BEN[me]&&t.to===BEN[me]&&!t.void) toast("O Estado forneceu-te "+t.amt+"¥. Toca em «Receber» quando os quiseres levantar.");
       if(me&&ACCT_CLS[t.to]===me&&ACCT_CLS[t.from]!==me&&t.by!==me&&!t.void&&t.tag!=="start"){
         var k=t.grp; if(!inc[k]) inc[k]={amt:0,from:ACCT_CLS[t.from],tag:t.tag}; inc[k].amt+=t.amt;
       }
@@ -376,6 +383,28 @@ function transfer(fromP,toP,n,tg,o){
     });
   });
   return p.then(function(){busy=false;return true;},function(e){busy=false;writeFailed(e);return false;}).then(function(ok){render();return ok;});
+}
+
+/* ---------- State Benefits ---------- */
+/* The State moves money from its Treasury into a class's State Benefits area. Anything already there is discarded first. */
+function provide(c,n){
+  var b=balances().b, k=BEN[c];
+  if(!k) return Promise.resolve(false);
+  if(b.st<n){ toast("O Estado só tem "+b.st+"¥.",true); return Promise.resolve(false); }
+  var grp=rid(), old=b[k];
+  busy=true; render();
+  var p=Promise.resolve();
+  if(old>0) p=p.then(function(){ return put("tx/"+rid(),{from:k,to:"bank",amt:old,tag:"desc",ts:Date.now(),by:me,void:false,grp:grp}); });
+  p=p.then(function(){ return put("tx/"+rid(),{from:"st",to:k,amt:n,tag:"forn",ts:Date.now(),by:me,void:false,grp:grp}); });
+  return p.then(function(){ busy=false; toast("Forneceste "+n+"¥ "+P[c].a+"."+(old>0?" Os "+old+"¥ que lá estavam foram descartados.":"")); return true; },
+                function(e){ busy=false; writeFailed(e); return false; }).then(function(ok){ render(); return ok; });
+}
+function collect(){
+  var k=BEN[me], n=k?balances().b[k]:0;
+  if(n<=0) return;
+  busy=true; render();
+  put("tx/"+rid(),{from:k,to:me==="cc"?"rev":me,amt:n,tag:"ben",ts:Date.now(),by:me,void:false})
+    .then(function(){ busy=false; toast("Recebeste "+n+"¥ dos Benefícios do Estado. O Estado ganha 1 PV."); },function(e){ busy=false; writeFailed(e); }).then(render);
 }
 
 /* ---------- taxes ---------- */
@@ -465,6 +494,7 @@ function init(){
 
 /* ---------- render ---------- */
 function render(){
+  var fo=document.activeElement&&document.activeElement.id==="mvamt";
   var st=balances(), b=st.b, l=st.l, lk=locked();
   document.body.dataset.me=me||"";
 
@@ -520,35 +550,44 @@ function render(){
     var h='<div class="who">'+esc(P[me].n)+(names[me]?" · "+esc(names[me]):"")+'</div>';
     if(me==="cc"){
       h+='<div class="split"><div><div class="lbl">Receitas</div><div class="big">'+money(b.rev)+'</div></div><div><div class="lbl">Capital</div><div class="big">'+money(b.cap)+'</div></div></div>'+
-         '<div class="row"><button type="button" class="btn" data-act="close"'+(lk||b.rev<=0?" disabled":"")+'>Passar Receitas para Capital</button></div>';
+         '<div class="lbl">Passar Receitas para Capital</div><div class="row mv">'+
+         '<input id="mvamt" type="number" inputmode="numeric" min="1" max="'+Math.max(b.rev,0)+'" value="'+(mvAmt||"")+'" placeholder="Valor" aria-label="Valor a passar para Capital"'+(lk||b.rev<=0?" disabled":"")+'>'+
+         '<button type="button" class="btn" data-act="close"'+(lk||b.rev<=0||!(mvAmt>0)||mvAmt>b.rev?" disabled":"")+'>Passar'+(mvAmt>0?" "+mvAmt+"¥":"")+'</button>'+
+         '<button type="button" class="btn" data-act="closeall"'+(lk||b.rev<=0?" disabled":"")+'>Tudo ('+Math.max(b.rev,0)+'¥)</button></div>';
     }else h+='<div class="big">'+money(b[me])+'</div>';
     var n=l[me];
+    var bn=BEN[me]?b[BEN[me]]:0;
+    if(bn>0) h+='<div class="ask"><p>O Estado forneceu-te <b>'+bn+'¥</b> em benefícios.</p><div class="row"><button type="button" class="btn yes" data-act="ben"'+(lk?" disabled":"")+'>Receber '+bn+'¥</button></div></div>';
     h+='<div class="lbl">Empréstimos: '+n+'</div><div class="row">'+
        '<button type="button" class="btn" data-act="loan"'+(lk?" disabled":"")+'>Pedir +'+LOAN+'¥</button>'+
        '<button type="button" class="btn" data-act="repay"'+(lk||!n?" disabled":"")+'>Liquidar −'+LOAN+'¥</button>'+
        '<button type="button" class="btn" data-act="interest"'+(lk||!n?" disabled":"")+'>Pagar juros '+(n*INTEREST)+'¥</button></div>';
     $("balance").innerHTML=h;
+    if(fo&&$("mvamt")) $("mvamt").focus();
   }
 
   $("others").innerHTML=CLS.map(function(c){
     var sub=c==="cc"?"R "+b.rev+" · C "+b.cap:(l[c]?l[c]+" empr.":"\u00a0");
     if(c==="cc"&&l[c]) sub+=" · "+l[c]+" empr.";
+    if(BEN[c]&&b[BEN[c]]>0) sub=(sub.trim()?sub+" · ":"")+b[BEN[c]]+" em benef.";
     return '<div class="tile" data-cls="'+c+'"><span class="nm">'+esc(P[c].s)+'</span><span>'+esc(c===me?"Tu":names[c]||(seats[c]?"Ocupada":"Livre"))+'</span><b>'+total(b,c)+'¥</b><span>'+esc(sub)+'</span></div>';
   }).join("");
 
   if(me){
+    if(dir==="prov"&&me!=="st") dir="out";
     if(party===me) party="bank";
-    $("parties").innerHTML=["bank"].concat(CLS).filter(function(c){return c!==me;}).map(function(c){
+    if(dir==="prov"&&!BEN[party]) party="wc";
+    $("parties").innerHTML=(dir==="prov"?["wc","mc","cc"]:["bank"].concat(CLS)).filter(function(c){return c!==me;}).map(function(c){
       return '<button type="button" class="chip"'+(c!=="bank"?' data-cls="'+c+'"':"")+' data-party="'+c+'" aria-pressed="'+(c===party)+'">'+esc(P[c].s)+'</button>';
     }).join("");
-    each("[data-dir]",function(el){ el.setAttribute("aria-pressed",String(el.dataset.dir===dir)); });
+    each("[data-dir]",function(el){ el.setAttribute("aria-pressed",String(el.dataset.dir===dir)); if(el.dataset.dir==="prov") el.hidden=me!=="st"; });
     each("[data-tag]",function(el){ el.setAttribute("aria-pressed",String(el.dataset.tag===tag)); });
     each("[data-ccin]",function(el){ el.setAttribute("aria-pressed",String(el.dataset.ccin===ccIn)); });
     $("ccin").hidden=!(me==="cc"&&dir==="in");
     $("amt").innerHTML=money(amt);
     var go=$("go"), ask=dir==="in"&&party!=="bank"&&seats[party];
     go.disabled=lk||amt<=0;
-    go.textContent=amt<=0?"Indica o valor":dir==="out"?"Pagar "+amt+"¥ "+P[party].a:ask?"Pedir "+amt+"¥ "+P[party].a:"Receber "+amt+"¥ "+P[party].d;
+    go.textContent=amt<=0?"Indica o valor":dir==="prov"?"Fornecer "+amt+"¥ "+P[party].a:dir==="out"?"Pagar "+amt+"¥ "+P[party].a:ask?"Pedir "+amt+"¥ "+P[party].a:"Receber "+amt+"¥ "+P[party].d;
 
     /* taxes */
     var t='<h2>Impostos</h2><p class="help">As políticas são partilhadas: quem as mudar aqui muda-as para todos.</p>';
@@ -615,7 +654,8 @@ document.addEventListener("click",function(ev){
   else if(d.add){ amt=Math.min(amt+Number(d.add),99999); render(); }
   else if(el.id==="go"){
     var n=amt;
-    if(dir==="in"&&party!=="bank"&&seats[party]){
+    if(dir==="prov"){ provide(party,n).then(function(ok){ if(ok){ amt=0; render(); } }); }
+    else if(dir==="in"&&party!=="bank"&&seats[party]){
       var r={from:party,to:me,amt:n,st:"wait",ts:Date.now()}; if(tag) r.tag=tag; if(me==="cc") r.inn=ccIn;
       put("req/"+rid(),r).then(function(){ amt=0; tag=null; render(); },fail);
     }else{
@@ -635,12 +675,13 @@ document.addEventListener("click",function(ev){
     if(v>=LIM[k][0]&&v<=LIM[k][1]){ taxIn[k]=v; try{ var sv={g:gameId}; Object.keys(LIM).forEach(function(x){sv[x]=taxIn[x];}); localStorage.setItem("heg-tax",JSON.stringify(sv)); }catch(e){} render(); }
   }
   else if(d.act==="tax"){ payTax(); }
+  else if(d.act==="ben"){ collect(); }
   else if(d.act==="loan"){ transfer("bank",me,LOAN,"loan",{loan:{c:me,n:1}}).then(function(ok){ if(ok) toast("Empréstimo de "+LOAN+"¥ recebido."); }); }
   else if(d.act==="repay"){ transfer(me,"bank",LOAN,"repay",{loan:{c:me,n:-1},capFirst:true}).then(function(ok){ if(ok) toast("Empréstimo liquidado."); }); }
   else if(d.act==="interest"){ var i=balances().l[me]*INTEREST; if(i>0) transfer(me,"bank",i,"jur",{capFirst:true}).then(function(ok){ if(ok) toast("Juros de "+i+"¥ pagos."); }); }
-  else if(d.act==="close"){
-    var rv=balances().b.rev;
-    if(rv>0){ busy=true; render(); put("tx/"+rid(),{from:"rev",to:"cap",amt:rv,tag:"mov",ts:Date.now(),by:me,void:false}).then(function(){busy=false;toast(rv+"¥ passaram para Capital.");},function(e){busy=false;writeFailed(e);}).then(render); }
+  else if(d.act==="close"||d.act==="closeall"){
+    var rv=balances().b.rev, mv=d.act==="closeall"?rv:mvAmt;
+    if(mv>0&&mv<=rv){ busy=true; render(); put("tx/"+rid(),{from:"rev",to:"cap",amt:mv,tag:"mov",ts:Date.now(),by:me,void:false}).then(function(){busy=false;mvAmt=0;toast(mv+"¥ passaram para Capital.");},function(e){busy=false;writeFailed(e);}).then(render); }
   }
   else if(d.void){
     var t=txs.filter(function(x){return x.id===d.void;})[0];
@@ -648,6 +689,12 @@ document.addEventListener("click",function(ev){
   }
 });
 
+document.addEventListener("input",function(ev){
+  if(ev.target.id!=="mvamt") return;
+  var v=Math.floor(Number(ev.target.value)); mvAmt=v>0?v:0;
+  var bt=document.querySelector('[data-act="close"]'), rv=balances().b.rev;
+  if(bt){ bt.disabled=locked()||!(mvAmt>0)||mvAmt>rv; bt.textContent="Passar"+(mvAmt>0?" "+mvAmt+"¥":""); }
+});
 $("pname").value=myName;
 $("pname").addEventListener("input",function(){ myName=this.value.trim().slice(0,20); try{localStorage.setItem("heg-name",myName);}catch(e){} render(); });
 setInterval(function(){ if(gameId&&metaStart&&Date.now()-metaStart>=DAY) useGame(null); },60000);
